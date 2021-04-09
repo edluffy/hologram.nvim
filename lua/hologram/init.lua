@@ -1,5 +1,4 @@
-local graphics = require('hologram.graphics')
-local Image = require('hologram.image')
+local render = require('hologram.render')
 
 local hologram = {}
 
@@ -14,24 +13,24 @@ function hologram.setup(opts)
     opts = vim.tbl_deep_extend("force", DEFAULT_OPTS, opts)
 
     vim.g.mark_ns = vim.api.nvim_create_namespace('hologram')
-end
-
-function hologram.show()
-    img = Image:new({
+    vim.api.nvim_set_decoration_provider(vim.g.mark_ns, {
+        on_buf = hologram._on_buf,
     })
-    
-    
-    img:generate()
-    img:show()
-
-    img:move_pos(10, 15)
-    img:generate()
-    img:show()
+    hologram.create_autocmds()
 end
 
-function hologram.test()
-    hologram.setup{}
-    hologram.show()
+local renderer = render._Renderer:new()
+
+function hologram.test1()
+    renderer:add_item('...', 0, 0)
+    renderer:add_item('...', 11, 15)
+    renderer:redraw()
+end
+
+function hologram.create_autocmds()
+    vim.cmd("augroup Hologram") vim.cmd("autocmd!")
+    vim.cmd("silent autocmd CursorMoved * :lua require('hologram').update_viewport()")
+    vim.cmd("augroup END")
 end
 
 return hologram
