@@ -21,11 +21,6 @@ end
 
 local renderer = render._Renderer:new()
 
-function hologram.test1()
-    renderer:add_item('...', 0, 0)
-    renderer:add_item('...', 11, 15)
-    renderer:redraw()
-end
 
 function hologram.create_autocmds()
     vim.cmd("augroup Hologram") vim.cmd("autocmd!")

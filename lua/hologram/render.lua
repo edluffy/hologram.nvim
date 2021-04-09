@@ -23,7 +23,10 @@ end
 
 -- Only redraws items in current view
 function Renderer:redraw()
-    local ext_pos = vim.api.nvim_buf_get_extmarks(
+    --vim.cmd("mode")
+
+    local cl, cc = unpack(vim.api.nvim_win_get_cursor(0))
+    local visible = vim.api.nvim_buf_get_extmarks(
         self.buf, 
         vim.g.mark_ns,
         {vim.fn.line('w0'),  0},
@@ -32,19 +35,19 @@ function Renderer:redraw()
 
     local async
     async = vim.loop.new_async(function()
-        for ext, pos in ipairs(ext_pos) do
-            local l, c = unpack(pos)
-            local source = render.read_source(self._items[ext].source)
+        for _, v in ipairs(visible) do
+            local ext, l, c = unpack(v)
+            local raw = render.read_source(self._items[ext].source)
 
-            render.cursor_write_move(l, c)
+            render.cursor_write_move(l-cl, c-cc)
             if self.protocol == 'kitty' then
-                render.kitty_write_chunked(source, {a='T', f='100',})
+                render.kitty_write_chunked(raw, {a='T', f='100',})
             elseif self.protocol == 'iterm2' then
                 print('Iterm2 support coming soon!')
             else
                 printf("Renderer cannot write - terminal not compatible")
             end
-            render.cursor_write_return()
+            render.cursor_write_restore()
         end
         async:close()
     end)
@@ -79,11 +82,31 @@ function render.detect()
     return 'kitty'
 end
 
-function render.cursor_write_move(l, c)
-    stdout:write('\x1b[s\x1b['..l..';'..c..'H')
+function render.cursor_write_move(dl, dc)
+    --vim.api.nvim_win_set_cursor(0, {l, c})
+    --stdout:write('\x1b[s\x1b['..l..';'..c..'H')
+
+    -- Find direction to move in
+    local seq1, seq2
+
+    if dl < 0 then
+        seq1 = 'A'  -- up
+    else 
+        seq1 = 'B'  -- down
+    end
+
+    if dc < 0 then
+        seq2 = 'D' -- right
+    else
+        seq2 = 'C' -- left
+    end
+
+    stdout:write('\x1b[s') -- save position
+    stdout:write('\x1b['..math.abs(dl)..seq1)
+    stdout:write('\x1b['..math.abs(dc)..seq2)
 end
 
-function render.cursor_write_return()
+function render.cursor_write_restore()
     stdout:write('\x1b[u')
 end
 
