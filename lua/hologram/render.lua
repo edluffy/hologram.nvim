@@ -120,7 +120,7 @@ end
 
    '<ESC>_G<control data>;<payload><ESC>\'
 
-     <control data> - a=T,f=100....
+     <control keys> - a=T,f=100....
           <payload> - base64 enc. file data
               <ESC> - \x1b or \27 (*)
 
@@ -174,7 +174,39 @@ function render.kitty_write_clear(ids, free)
 end
 
 -- TODO: properly rewrite all sequences
-function Renderer:transmit(format, medium, size, width)
+
+--[[ 
+        display Whether to display image immediately after 
+                transmission. Default is 1.
+
+        medium  Transmission medium used. Accepted values are
+                'direct'(default), 'file', 'temp_file' or 'shared'.
+
+        format  Format in which image data is sent. TODO:
+
+        size    Dimensions of the image being sent
+                • height: 0 (auto)
+                •  width: 0 (auto)
+--]]
+function Renderer:transmit(id, keys)
+    keys = keys or {}
+    vim.tbl_deep_extend('keep', keys, {
+        display = 1,
+        medium  = 'direct',
+        format  = 32,
+        size    = {0, 0},
+    })
+
+    local d
+    if keys.display then d = 'T' else d = 't' end
+
+    local code = '\x1b_Ga=' .. d
+        .. ',i=' .. id
+        .. ',t=' .. keys.medium:sub(1, 1)
+        .. ',f=' .. keys.format
+        .. ',s=' .. keys.size[1]
+        .. ',V=' .. keys.size[2]
+        .. '\x1b\\'
 end
 
 --[[ Every transmitted image can be displayed an arbitrary number of times
@@ -223,7 +255,6 @@ function Renderer:display(id, keys)
         .. ',X=' .. keys.offset[1]
         .. ',Y=' .. keys.offset[2]
         .. '\x1b\\'
-    print(code)
 end
 
 function Renderer:delete(opts)
