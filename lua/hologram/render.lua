@@ -257,7 +257,62 @@ function Renderer:display(id, keys)
         .. '\x1b\\'
 end
 
-function Renderer:delete(opts)
+--[[    Delete images by either specifying an image 'id' or a set of 'keys'.
+        To clear all images, set id=-1.
+
+        free       When deleting image, free stored image data also.
+                   Default is false
+
+        z_index    Delete all images that have the specified z-index.
+
+        col  Delete all images that intersect the specified column.
+
+        row  Delete all images that intersect the specified row.
+
+        cell  Delete all images that intersect the specified cell {col, row}
+]]--
+
+function Renderer:delete(id, keys)
+    keys = keys or {}
+    vim.tbl_deep_extend('keep', keys, {
+        free = false,
+        z_index = nil,
+        col = nil,
+        row = nil,
+        cell = nil,
+    })
+
+    local case
+    if keys.free then
+        case = function(k) return k:upper() end
+    else
+        case = function(k) return k:lower() end
+    end
+
+    if id then
+        if id == -1 then
+            stdout:write('x1b_Ga=d,d='..case('a')..'\x1b\\')
+        else
+            stdout:write('x1b_Ga=d,d='..case('i')..',i='..id..'\x1b\\')
+        end
+        
+    else
+        if keys.z_index then
+            stdout:write('x1b_Ga=d,d='..case('z')..',z='..keys.z_index..'\x1b\\')
+        end
+
+        if keys.col then
+            stdout:write('x1b_Ga=d,d='..case('x')..',x='..keys.col..'\x1b\\')
+        end
+
+        if keys.row then
+            stdout:write('x1b_Ga=d,d='..case('y')..',y='..keys.row..'\x1b\\')
+        end
+
+        if keys.cell then
+            stdout:write('x1b_Ga=d,d='..case('p')..',x='..keys.cell[1]..',y='..keys.cell[2]..'\x1b\\')
+        end
+    end
 end
 
 render._Renderer = Renderer
