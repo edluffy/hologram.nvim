@@ -3,7 +3,9 @@ local utils = require('hologram.utils')
 local render = {}
 
 local stdout = vim.loop.new_pipe(false)
+local stderr = vim.loop.new_pipe(false)
 stdout:open(1)
+stderr:open(0)
 
 local Renderer = {}
 Renderer.__index = Renderer
@@ -75,48 +77,57 @@ function Renderer:get_transform(ext)
     return self._items[ext].transform
 end
 
-function render.read_source(source)
-    -- TODO: if source is url, create tempfile
-    local file = io.open(source, 'r')
-    local raw = file:read('*all')
-    io.close(file)
-    return raw
-end
-
 function render.detect()
     return 'kitty'
 end
 
-function render.cursor_write_move(dl, dc)
-    --vim.api.nvim_win_set_cursor(0, {l, c})
-    --stdout:write('\x1b[s\x1b['..l..';'..c..'H')
+function render.cursor_write_move(row, col)
+    local cursor_row, cursor_col = unpack(vim.api.nvim_win_get_cursor(0))
+    local dr = row - cursor_row
+    local dc = col - cursor_col
 
     -- Find direction to move in
-    local seq1, seq2
+    local key1, key2
 
-    if dl < 0 then
-        seq1 = 'A'  -- up
+    if dr < 0 then
+        key1 = 'A'  -- up
     else 
-        seq1 = 'B'  -- down
+        key1 = 'B'  -- down
     end
 
     if dc < 0 then
-        seq2 = 'D' -- right
+        key2 = 'D' -- right
     else
-        seq2 = 'C' -- left
+        key2 = 'C' -- left
     end
 
     stdout:write('\x1b[s') -- save position
-    stdout:write('\x1b[' .. math.abs(dl) .. seq1)
-    stdout:write('\x1b[' .. math.abs(dc) .. seq2)
+    stdout:write('\x1b[' .. math.abs(dr) .. key1)
+    stdout:write('\x1b[' .. math.abs(dc) .. key2)
 end
 
 function render.cursor_write_restore()
     stdout:write('\x1b[u')
 end
 
+function render.keys_to_str(keys)
+    local str = ''
+    for k, v in pairs(keys) do
+        str = str..k..'='..v..','
+    end
+    return str:sub(0, -2) -- chop trailing comma
+end
+
+function render.gen_id()
+    --id = vim.api.nvim_buf_set_extmark(0, vim.g.hologram_extmark_ns, l, c, {
+    --    virt_text = {{' Preview Image', 'HologramVirtualText'}}
+    --})
+
+    return 1
+end
+
 --[[
-     All Kitty graphics escape codes are of the form:
+     All Kitty graphics commands are of the form:
 
    '<ESC>_G<control data>;<payload><ESC>\'
 
@@ -128,89 +139,74 @@ end
 ]]--
 
 
--- Split data into 4096 byte chunks
-function render.kitty_write_chunked(data, ctrl_data)
-    data = utils.base64_encode(data)
-    local chunk, cmd
-    local first = true
-
-    while #data > 0 do
-        chunk = data:sub(0, 4096)
-        data  = data:sub(4097, -1)
-
-        ctrl_data.m = (#data > 0) and '1' or '0'
-        cmd = render.kitty_serialize_cmd(ctrl_data, chunk)
-        stdout:write(cmd)
-
-        -- Not sure why this works, but it does
-        if first then stdout:write(cmd) ; first = false end
-        ctrl_data = {}
-    end
-end
-
-function render.kitty_serialize_cmd(ctrl, payload)
-    local code = '\x1b_G'
-
-    if ctrl then -- Lua table to string
-        for k, v in pairs(ctrl) do
-            code = code..k..'='..v..','
-        end
-        code = code:sub(0, -2) -- chop trailing comma
-    end
-
-    if payload then
-        code = code..';'..payload
-    end
-
-    return code..'\x1b\\'
-end
-
-function render.kitty_write_clear(ids, free)
-    local seq
-    if free then seq = 'I' else seq = 'i' end
-    for _, id in ipairs(ids) do
-        stdout:write('\x1b_Ga=d,d=' .. seq .. ',i=' .. id)
-    end
-end
-
--- TODO: properly rewrite all sequences
-
 --[[ 
-        display Whether to display image immediately after 
-                transmission. Default is 1.
-
         medium  Transmission medium used. Accepted values are
                 'direct'(default), 'file', 'temp_file' or 'shared'.
 
         format  Format in which image data is sent. TODO:
 
-        size    Dimensions of the image being sent
-                • height: 0 (auto)
-                •  width: 0 (auto)
+        height 
+
+        width  
+
+        col
+
+        row
 --]]
-function Renderer:transmit(id, keys)
-    keys = keys or {}
-    vim.tbl_deep_extend('keep', keys, {
-        display = 1,
-        medium  = 'direct',
-        format  = 32,
-        size    = {0, 0},
-    })
+function Renderer:display(source, opts)
+    if type(opts) ~= 'table' then opts = {} end
+    opts.medium = opts.medium or 'direct'
 
-    local d
-    if keys.display then d = 'T' else d = 't' end
+    local keys = {
+        i = render.gen_id(),
+        t = opts.medium:sub(1, 1),
+        f = opts.format or 100,
+        v = opts.height,
+        s = opts.width,
+    }
 
-    local code = '\x1b_Ga=' .. d
-        .. ',i=' .. id
-        .. ',t=' .. keys.medium:sub(1, 1)
-        .. ',f=' .. keys.format
-        .. ',s=' .. keys.size[1]
-        .. ',V=' .. keys.size[2]
-        .. '\x1b\\'
+    local cursor_moved = opts.row and opts.col
+    if cursor_moved then
+        render.cursor_write_move(opts.row, opts.col)
+    end
+
+    local async_send_gfx
+    async_send_gfx = vim.loop.new_async(function()
+        local raw, chunk, cmd
+        raw = render.read_source(source)
+
+        local first = true
+        while #raw > 0 do
+            chunk = raw:sub(0, 4096)
+            raw   = raw:sub(4097, -1)
+
+            keys.m = (#raw > 0) and 1 or 0
+            keys.q = 1 -- suppress responses
+
+            cmd = '\x1b_Ga=T,' .. render.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
+            stdout:write(cmd)
+
+            -- Not sure why this works, but it does
+            if first then 
+                stdout:write(cmd)
+                first = false 
+            end
+
+            keys = {}
+        end
+        async_send_gfx:close()
+    end)
+    async_send_gfx:send()
+
+    if cursor_moved then
+        render.cursor_write_restore()
+    end
+
+    return id
 end
 
 --[[ Every transmitted image can be displayed an arbitrary number of times
-     on the screen in different locations. Keys for display:
+     on the screen in different locations. Keys for adjustments:
 
         z_index  Vertical stacking order of the image 0 by default.
                  Negative z_index will draw below text.
@@ -233,9 +229,9 @@ end
                  • y: 0 (auto)
 ]]--
 
-function Renderer:display(id, keys)
-    keys = keys or {}
-    vim.tbl_deep_extend('keep', keys, {
+function Renderer:adjust(id, opts)
+    if type(opts) ~= 'table' then opts = {} end
+    opts = vim.tbl_deep_extend('keep', opts, {
         z_index =  0,
         crop    = {0, 0},
         area    = {0, 0},
@@ -245,19 +241,19 @@ function Renderer:display(id, keys)
 
     local code = '\x1b_Ga=p'
         .. ',i=' .. id
-        .. ',z=' .. keys.z_index
-        .. ',w=' .. keys.crop[1]
-        .. ',h=' .. keys.crop[2]
-        .. ',c=' .. keys.area[1]
-        .. ',r=' .. keys.area[2]
-        .. ',x=' .. keys.edge[1]
-        .. ',y=' .. keys.edge[2]
-        .. ',X=' .. keys.offset[1]
-        .. ',Y=' .. keys.offset[2]
+        .. ',z=' .. opts.z_index
+        .. ',w=' .. opts.crop[1]
+        .. ',h=' .. opts.crop[2]
+        .. ',c=' .. opts.area[1]
+        .. ',r=' .. opts.area[2]
+        .. ',x=' .. opts.edge[1]
+        .. ',y=' .. opts.edge[2]
+        .. ',X=' .. opts.offset[1]
+        .. ',Y=' .. opts.offset[2]
         .. '\x1b\\'
 end
 
---[[    Delete images by either specifying an image 'id' or a set of 'keys'.
+--[[    Delete images by either specifying an image 'id' or a set of 'opts'.
         To clear all images, set id=-1.
 
         free       When deleting image, free stored image data also.
@@ -272,9 +268,9 @@ end
         cell  Delete all images that intersect the specified cell {col, row}
 ]]--
 
-function Renderer:delete(id, keys)
-    keys = keys or {}
-    vim.tbl_deep_extend('keep', keys, {
+function Renderer:delete(id, opts)
+    if type(opts) ~= 'table' then opts = {} end
+    opts = vim.tbl_deep_extend('keep', opts, {
         free = false,
         z_index = nil,
         col = nil,
@@ -283,36 +279,49 @@ function Renderer:delete(id, keys)
     })
 
     local case
-    if keys.free then
+    if opts.free then
         case = function(k) return k:upper() end
     else
         case = function(k) return k:lower() end
     end
 
+    local cs = {}
+
     if id then
         if id == -1 then
-            stdout:write('x1b_Ga=d,d='..case('a')..'\x1b\\')
+            cs[#cs+1] = 'x1b_Ga=d,d='..case('a')..'\x1b\\'
         else
-            stdout:write('x1b_Ga=d,d='..case('i')..',i='..id..'\x1b\\')
+            cs[#cs+1] = 'x1b_Ga=d,d='..case('i')..',i='..id..'\x1b\\'
         end
         
     else
-        if keys.z_index then
-            stdout:write('x1b_Ga=d,d='..case('z')..',z='..keys.z_index..'\x1b\\')
+        if opts.z_index then
+            cs[#cs+1] = 'x1b_Ga=d,d='..case('z')..',z='..opts.z_index..'\x1b\\'
         end
-
-        if keys.col then
-            stdout:write('x1b_Ga=d,d='..case('x')..',x='..keys.col..'\x1b\\')
+        if opts.col then
+            cs[#cs+1] = 'x1b_Ga=d,d='..case('x')..',x='..opts.col..'\x1b\\'
         end
-
-        if keys.row then
-            stdout:write('x1b_Ga=d,d='..case('y')..',y='..keys.row..'\x1b\\')
+        if opts.row then
+            cs[#cs+1] = 'x1b_Ga=d,d='..case('y')..',y='..opts.row..'\x1b\\'
         end
-
-        if keys.cell then
-            stdout:write('x1b_Ga=d,d='..case('p')..',x='..keys.cell[1]..',y='..keys.cell[2]..'\x1b\\')
+        if opts.cell then
+            cs[#cs+1] = 'x1b_Ga=d,d='..case('p')..',x='..opts.cell[1]..',y='..opts.cell[2]..'\x1b\\'
         end
     end
+
+    for _, c in ipairs(cs) do
+        stdout:write(c)
+    end
+
+end
+
+function render.read_source(source)
+    -- TODO: if source is url, create tempfile
+    local file = io.open(source, 'r')
+    local raw = file:read('*all')
+    io.close(file)
+    raw = utils.base64_encode(raw)
+    return raw
 end
 
 render._Renderer = Renderer
