@@ -1,8 +1,14 @@
-local M = {}
+local ffi = require("ffi")
+
+ffi.cdef [[
+unsigned int usleep(unsigned int us);
+]]
+
+local utils = {}
 
 local b='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 
-function M.base64_encode(data)
+function utils.base64_encode(data)
     return ((data:gsub('.', function(x) 
         local r,b='',x:byte()
         for i=8,1,-1 do r=r..(b%2^i-b%2^(i-1)>0 and '1' or '0') end
@@ -15,4 +21,8 @@ function M.base64_encode(data)
     end)..({ '', '==', '=' })[#data%3+1])
 end
 
-return M
+function utils.usleep(us)
+    ffi.C.usleep(us)
+end
+
+return utils
