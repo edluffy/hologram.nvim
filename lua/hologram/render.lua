@@ -3,9 +3,7 @@ local utils = require('hologram.utils')
 local render = {}
 
 local stdout = vim.loop.new_pipe(false)
-local stderr = vim.loop.new_pipe(false)
 stdout:open(1)
-stderr:open(0)
 
 local Renderer = {}
 Renderer.__index = Renderer
@@ -17,114 +15,67 @@ function Renderer:new(opts)
     local obj = setmetatable({
         protocol = opts.protocol or render.detect(),
         buf = opts.buf or vim.api.nvim_get_current_buf(),
-        _items = opts.items or {},
+        items = {},
         -- opts go here
     }, self)
+
     return obj
 end
 
 -- Only redraws items in current view
-function Renderer:redraw()
-    --vim.cmd("mode")
-    --stdout:write('\x1b[2J')
-
-    local cl, cc = unpack(vim.api.nvim_win_get_cursor(0))
-    local visible = vim.api.nvim_buf_get_extmarks(
-        self.buf, 
-        vim.g.hologram_extmark_ns,
-        {vim.fn.line('w0'),  0},
-        {vim.fn.line('w$'), -1},
-    {})
-
-    local async
-    async = vim.loop.new_async(function()
-        for _, v in ipairs(visible) do
-            local ext, l, c = unpack(v)
-            local raw = render.read_source(self._items[ext].source)
-            render.kitty_write_clear({ext}, false)
-
-            -- TODO: rename ext to id
-            render.cursor_write_move(l-cl, c-cc)
-            if self.protocol == 'kitty' then
-                render.kitty_write_chunked(raw, {a='T', f='100', i=ext, q='1'})
-            elseif self.protocol == 'iterm2' then
-                print('Iterm2 support coming soon!')
-            else
-                printf("Renderer cannot write - terminal not compatible")
-            end
-            render.cursor_write_restore()
-        end
-        async:close()
-    end)
-    async:send()
-end
-
-function Renderer:add_item(source, l, c)
-    ext = vim.api.nvim_buf_set_extmark(self.buf, vim.g.hologram_extmark_ns, l, c, {
-        virt_text = {{' Preview Image', 'HologramVirtualText'}}
-    })
-    self._items[ext] = {
-        source = source, 
-        transform = nil,
-    }
-end
+--function Renderer:redraw()
+--    --vim.cmd("mode")
+--    --stdout:write('\x1b[2J')
+--
+--    local cl, cc = unpack(vim.api.nvim_win_get_cursor(0))
+--    local visible = vim.api.nvim_buf_get_extmarks(
+--        self.buf, 
+--        vim.g.hologram_extmark_ns,
+--        {vim.fn.line('w0'),  0},
+--        {vim.fn.line('w$'), -1},
+--    {})
+--
+--    local async
+--    async = vim.loop.new_async(function()
+--        for _, v in ipairs(visible) do
+--            local ext, l, c = unpack(v)
+--            local raw = render.read_source(self._items[ext].source)
+--            render.kitty_write_clear({ext}, false)
+--
+--            -- TODO: rename ext to id
+--            render.cursor_write_move(l-cl, c-cc)
+--            if self.protocol == 'kitty' then
+--                render.kitty_write_chunked(raw, {a='T', f='100', i=ext, q='1'})
+--            elseif self.protocol == 'iterm2' then
+--                print('Iterm2 support coming soon!')
+--            else
+--                printf("Renderer cannot write - terminal not compatible")
+--            end
+--            render.cursor_write_restore()
+--        end
+--        async:close()
+--    end)
+--    async:send()
+--end
+--
+--function Renderer:add_item(source, l, c)
+--    ext = vim.api.nvim_buf_set_extmark(self.buf, vim.g.hologram_extmark_ns, l, c, {
+--        virt_text = {{' Preview Image', 'HologramVirtualText'}}
+--    })
+--    self._items[ext] = {
+--        source = source, 
+--        transform = nil,
+--    }
+--end
 
 function Renderer:set_transform(ext, tr)
-    self._items[ext].transform = tr
+    --self._items[ext].transform = tr
 end
 
 function Renderer:get_transform(ext)
-    return self._items[ext].transform
+    --return self._items[ext].transform
 end
 
-function render.detect()
-    return 'kitty'
-end
-
-function render.cursor_write_move(row, col)
-    local cursor_row, cursor_col = unpack(vim.api.nvim_win_get_cursor(0))
-    local dr = row - cursor_row
-    local dc = col - cursor_col
-
-    -- Find direction to move in
-    local key1, key2
-
-    if dr < 0 then
-        key1 = 'A'  -- up
-    else 
-        key1 = 'B'  -- down
-    end
-
-    if dc < 0 then
-        key2 = 'D' -- right
-    else
-        key2 = 'C' -- left
-    end
-
-    stdout:write('\x1b[s') -- save position
-    stdout:write('\x1b[' .. math.abs(dr) .. key1)
-    stdout:write('\x1b[' .. math.abs(dc) .. key2)
-end
-
-function render.cursor_write_restore()
-    stdout:write('\x1b[u')
-end
-
-function render.keys_to_str(keys)
-    local str = ''
-    for k, v in pairs(keys) do
-        str = str..k..'='..v..','
-    end
-    return str:sub(0, -2) -- chop trailing comma
-end
-
-function render.gen_id()
-    --id = vim.api.nvim_buf_set_extmark(0, vim.g.hologram_extmark_ns, l, c, {
-    --    virt_text = {{' Preview Image', 'HologramVirtualText'}}
-    --})
-
-    return 1
-end
 
 --[[
      All Kitty graphics commands are of the form:
@@ -153,27 +104,31 @@ end
 
         row
 --]]
-function Renderer:display(source, opts)
+function Renderer:display(id, source, opts)
     if type(opts) ~= 'table' then opts = {} end
+    local cur_row, cur_col = unpack(vim.api.nvim_win_get_cursor(0))
+
+    -- Defaults
     opts.medium = opts.medium or 'direct'
+    opts.format = opts.format or 100
+    opts.row = opts.row or cur_row
+    opts.col = opts.col or cur_col
 
     local keys = {
-        i = render.gen_id(),
+        i = id,
         t = opts.medium:sub(1, 1),
-        f = opts.format or 100,
+        f = opts.format,
         v = opts.height,
         s = opts.width,
     }
 
-    local cursor_moved = opts.row and opts.col
-    if cursor_moved then
-        render.cursor_write_move(opts.row, opts.col)
-    end
 
-    local async_send_gfx
-    async_send_gfx = vim.loop.new_async(function()
+    local as
+    as = vim.loop.new_async(function()
         local raw, chunk, cmd
         raw = render.read_source(source)
+
+        render.cursor_write_move(opts.row-cur_row, opts.col-cur_col)
 
         local first = true
         while #raw > 0 do
@@ -194,13 +149,12 @@ function Renderer:display(source, opts)
 
             keys = {}
         end
-        async_send_gfx:close()
-    end)
-    async_send_gfx:send()
 
-    if cursor_moved then
         render.cursor_write_restore()
-    end
+
+        as:close()
+    end)
+    as:send()
 
     return id
 end
@@ -253,11 +207,12 @@ function Renderer:adjust(id, opts)
         .. '\x1b\\'
 end
 
---[[    Delete images by either specifying an image 'id' or a set of 'opts'.
-        To clear all images, set id=-1.
+--[[    Delete images by either specifying an image 'id' and/or a set of 'opts'.
 
         free       When deleting image, free stored image data also.
                    Default is false
+
+        all        Clear all images
 
         z_index    Delete all images that have the specified z-index.
 
@@ -270,49 +225,55 @@ end
 
 function Renderer:delete(id, opts)
     if type(opts) ~= 'table' then opts = {} end
-    opts = vim.tbl_deep_extend('keep', opts, {
-        free = false,
-        z_index = nil,
-        col = nil,
-        row = nil,
-        cell = nil,
-    })
 
-    local case
-    if opts.free then
-        case = function(k) return k:upper() end
-    else
-        case = function(k) return k:lower() end
+    -- Defaults
+    opts.free = opts.free or false
+    opts.all = opts.all or false
+
+    local set_case = opts.free and string.upper or string.lower
+
+    local keys_set = {}
+
+    if opts.id then
+        keys_set[#keys_set+1] = {
+            d = set_case('a'),
+            i = id,
+        }
+    end
+    if opts.all then
+        keys_set[#keys_set+1] = {
+            d = set_case('a'),
+        }
+    end
+    if opts.z_index then
+        keys_set[#keys_set+1] = {
+            d = set_case('z'),
+            z = opts.z_index,
+        }
+    end
+    if opts.col then
+        keys_set[#keys_set+1] = {
+            d = set_case('x'),
+            x = opts.col, 
+        }
+    end
+    if opts.row then
+        keys_set[#keys_set+1] = {
+            d = set_case('y'),
+            y = opts.row, 
+        }
+    end
+    if opts.cell then
+        keys_set[#keys_set+1] = {
+            d = set_case('p'),
+            x = opts.cell[1], 
+            y = opts.cell[2],
+        }
     end
 
-    local cs = {}
-
-    if id then
-        if id == -1 then
-            cs[#cs+1] = 'x1b_Ga=d,d='..case('a')..'\x1b\\'
-        else
-            cs[#cs+1] = 'x1b_Ga=d,d='..case('i')..',i='..id..'\x1b\\'
-        end
-        
-    else
-        if opts.z_index then
-            cs[#cs+1] = 'x1b_Ga=d,d='..case('z')..',z='..opts.z_index..'\x1b\\'
-        end
-        if opts.col then
-            cs[#cs+1] = 'x1b_Ga=d,d='..case('x')..',x='..opts.col..'\x1b\\'
-        end
-        if opts.row then
-            cs[#cs+1] = 'x1b_Ga=d,d='..case('y')..',y='..opts.row..'\x1b\\'
-        end
-        if opts.cell then
-            cs[#cs+1] = 'x1b_Ga=d,d='..case('p')..',x='..opts.cell[1]..',y='..opts.cell[2]..'\x1b\\'
-        end
+    for _, keys in ipairs(keys_set) do
+        stdout:write('\x1b_Ga=d,' .. render.keys_to_str(keys) .. '\x1b\\')
     end
-
-    for _, c in ipairs(cs) do
-        stdout:write(c)
-    end
-
 end
 
 function render.read_source(source)
@@ -322,6 +283,43 @@ function render.read_source(source)
     io.close(file)
     raw = utils.base64_encode(raw)
     return raw
+end
+
+function render.detect()
+    return 'kitty'
+end
+
+function render.cursor_write_move(dr, dc)
+    -- Find direction to move in
+    local key1, key2
+
+    if dr < 0 then
+        key1 = 'A'  -- up
+    else 
+        key1 = 'B'  -- down
+    end
+
+    if dc < 0 then
+        key2 = 'D' -- right
+    else
+        key2 = 'C' -- left
+    end
+
+    stdout:write('\x1b[s') -- save position
+    stdout:write('\x1b[' .. math.abs(dr) .. key1)
+    stdout:write('\x1b[' .. math.abs(dc) .. key2)
+end
+
+function render.cursor_write_restore()
+    stdout:write('\x1b[u')
+end
+
+function render.keys_to_str(keys)
+    local str = ''
+    for k, v in pairs(keys) do
+        str = str..k..'='..v..','
+    end
+    return str:sub(0, -2) -- chop trailing comma
 end
 
 render._Renderer = Renderer
