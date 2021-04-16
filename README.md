@@ -1,6 +1,8 @@
 # hologram.nvim
 A cross platform terminal image viewer for Neovim. Extensible and fast, written in Lua and C. Works on macOS and Linux. Current support for
-[Kitty Graphics Protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol.html).
+[Kitty Graphics Protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol.html). Highly experimental, expect breaking changes.
+
+![showcase](https://user-images.githubusercontent.com/28115337/115054101-c0848680-9ed7-11eb-9980-a3bc2d691fc2.gif)
 
 ## Install
 Using [packer.nvim](https://github.com/wbthomason/packer.nvim):
