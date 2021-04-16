@@ -1,7 +1,14 @@
 local ffi = require("ffi")
 
 ffi.cdef [[
-unsigned int usleep(unsigned int us);
+
+int ioctl(int fd, int request, void *argp);
+
+typedef struct winsize{
+    unsigned short ws_row, ws_col;
+    unsigned short ws_xpixel, ws_ypixel;
+} winsize;
+
 ]]
 
 local utils = {}
@@ -21,8 +28,17 @@ function utils.base64_encode(data)
     end)..({ '', '==', '=' })[#data%3+1])
 end
 
-function utils.usleep(us)
-    ffi.C.usleep(us)
+-- TIOCGWINZ is 1074295912
+function utils.get_cellsize()
+    local sz = ffi.new('winsize')
+    ffi.C.ioctl(0, 1074295912, sz)
+
+    local cell_sz = {
+        y = sz.ws_ypixel/sz.ws_row, 
+        x = sz.ws_xpixel/sz.ws_col,
+    }
+
+    return cell_sz
 end
 
 return utils
