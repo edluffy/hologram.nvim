@@ -15,67 +15,12 @@ function Renderer:new(opts)
     local obj = setmetatable({
         protocol = opts.protocol or render.detect(),
         buf = opts.buf or vim.api.nvim_get_current_buf(),
-        items = {},
+        pos_list = {},
         -- opts go here
     }, self)
 
     return obj
 end
-
--- Only redraws items in current view
---function Renderer:redraw()
---    --vim.cmd("mode")
---    --stdout:write('\x1b[2J')
---
---    local cl, cc = unpack(vim.api.nvim_win_get_cursor(0))
---    local visible = vim.api.nvim_buf_get_extmarks(
---        self.buf, 
---        vim.g.hologram_extmark_ns,
---        {vim.fn.line('w0'),  0},
---        {vim.fn.line('w$'), -1},
---    {})
---
---    local async
---    async = vim.loop.new_async(function()
---        for _, v in ipairs(visible) do
---            local ext, l, c = unpack(v)
---            local raw = render.read_source(self._items[ext].source)
---            render.kitty_write_clear({ext}, false)
---
---            -- TODO: rename ext to id
---            render.cursor_write_move(l-cl, c-cc)
---            if self.protocol == 'kitty' then
---                render.kitty_write_chunked(raw, {a='T', f='100', i=ext, q='1'})
---            elseif self.protocol == 'iterm2' then
---                print('Iterm2 support coming soon!')
---            else
---                printf("Renderer cannot write - terminal not compatible")
---            end
---            render.cursor_write_restore()
---        end
---        async:close()
---    end)
---    async:send()
---end
---
---function Renderer:add_item(source, l, c)
---    ext = vim.api.nvim_buf_set_extmark(self.buf, vim.g.hologram_extmark_ns, l, c, {
---        virt_text = {{' Preview Image', 'HologramVirtualText'}}
---    })
---    self._items[ext] = {
---        source = source, 
---        transform = nil,
---    }
---end
-
-function Renderer:set_transform(ext, tr)
-    --self._items[ext].transform = tr
-end
-
-function Renderer:get_transform(ext)
-    --return self._items[ext].transform
-end
-
 
 --[[
      All Kitty graphics commands are of the form:
@@ -104,9 +49,8 @@ end
 
         row
 --]]
-function Renderer:display(id, source, opts)
-    if type(opts) ~= 'table' then opts = {} end
-    local cur_row, cur_col = unpack(vim.api.nvim_win_get_cursor(0))
+function Renderer:transmit(id, source, opts)
+    opts = opts or {}
 
     -- Defaults
     opts.medium = opts.medium or 'direct'
@@ -114,21 +58,25 @@ function Renderer:display(id, source, opts)
     opts.row = opts.row or cur_row
     opts.col = opts.col or cur_col
 
+    render.cursor_write_move(opts.row, opts.col)
+    self.pos_list[id] = {
+        col = opts.col,
+        row = opts.row,
+    }
+
     local keys = {
         i = id,
         t = opts.medium:sub(1, 1),
         f = opts.format,
         v = opts.height,
         s = opts.width,
+        p = 0,
     }
-
 
     local as
     as = vim.loop.new_async(function()
         local raw, chunk, cmd
         raw = render.read_source(source)
-
-        render.cursor_write_move(opts.row-cur_row, opts.col-cur_col)
 
         local first = true
         while #raw > 0 do
@@ -136,7 +84,7 @@ function Renderer:display(id, source, opts)
             raw   = raw:sub(4097, -1)
 
             keys.m = (#raw > 0) and 1 or 0
-            keys.q = 1 -- suppress responses
+            keys.q = 2 -- suppress responses
 
             cmd = '\x1b_Ga=T,' .. render.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
             stdout:write(cmd)
@@ -160,7 +108,7 @@ function Renderer:display(id, source, opts)
 end
 
 --[[ Every transmitted image can be displayed an arbitrary number of times
-     on the screen in different locations. Keys for adjustments:
+     on the screen in different locations.
 
         z_index  Vertical stacking order of the image 0 by default.
                  Negative z_index will draw below text.
@@ -174,7 +122,7 @@ end
                  • cols: 0 (auto)
                  • rows: 0 (auto)
 
-        edge     TODO:
+        edge     TODO: can cause crash if abused ;(
 
         offset   Position within first cell at which to begin
                  displaying image in pixels. Must be smaller
@@ -184,27 +132,38 @@ end
 ]]--
 
 function Renderer:adjust(id, opts)
-    if type(opts) ~= 'table' then opts = {} end
-    opts = vim.tbl_deep_extend('keep', opts, {
-        z_index =  0,
-        crop    = {0, 0},
-        area    = {0, 0},
-        edge    = {0, 0},
-        offset  = {0, 0},
-    })
+    opts = opts or {}
 
-    local code = '\x1b_Ga=p'
-        .. ',i=' .. id
-        .. ',z=' .. opts.z_index
-        .. ',w=' .. opts.crop[1]
-        .. ',h=' .. opts.crop[2]
-        .. ',c=' .. opts.area[1]
-        .. ',r=' .. opts.area[2]
-        .. ',x=' .. opts.edge[1]
-        .. ',y=' .. opts.edge[2]
-        .. ',X=' .. opts.offset[1]
-        .. ',Y=' .. opts.offset[2]
-        .. '\x1b\\'
+    -- Defaults
+    opts.crop = opts.crop or {}
+    opts.area = opts.area or {}
+    opts.edge = opts.edge or {}
+    opts.offset = opts.offset or {}
+
+    local keys = {
+        i = id,
+        z = opts.z_index,
+        w = opts.crop[1],
+        h = opts.crop[2],
+        c = opts.area[1],
+        r = opts.area[2],
+        x = opts.edge[1],
+        y = opts.edge[2],
+        X = opts.offset[1],
+        Y = opts.offset[2],
+        q = 2, -- suppress responses
+    }
+
+    -- Replace the last placement of this image
+    local pos = self.pos_list[id]
+    if pos then
+        render.cursor_write_move(pos.row, pos.col)
+        self:delete(id, { free = false, })
+    end
+
+    stdout:write('\x1b_Ga=p,' .. render.keys_to_str(keys) .. '\x1b\\')
+
+    render.cursor_write_restore()
 end
 
 --[[    Delete images by either specifying an image 'id' and/or a set of 'opts'.
@@ -224,7 +183,7 @@ end
 ]]--
 
 function Renderer:delete(id, opts)
-    if type(opts) ~= 'table' then opts = {} end
+    opts = opts or {}
 
     -- Defaults
     opts.free = opts.free or false
@@ -234,7 +193,7 @@ function Renderer:delete(id, opts)
 
     local keys_set = {}
 
-    if opts.id then
+    if id then
         keys_set[#keys_set+1] = {
             d = set_case('a'),
             i = id,
@@ -276,6 +235,9 @@ function Renderer:delete(id, opts)
     end
 end
 
+function Renderer:check_region(id)
+end
+
 function render.read_source(source)
     -- TODO: if source is url, create tempfile
     local file = io.open(source, 'r')
@@ -289,7 +251,13 @@ function render.detect()
     return 'kitty'
 end
 
-function render.cursor_write_move(dr, dc)
+-- Works by calculating offset between cursor and desired position.
+-- Bypasses need to translate between terminal cols/rows and nvim window cols/rows ;)
+function render.cursor_write_move(row, col)
+    local cur_row, cur_col = unpack(vim.api.nvim_win_get_cursor(0))
+    local dr = row - cur_row
+    local dc = col - cur_col
+
     -- Find direction to move in
     local key1, key2
 
