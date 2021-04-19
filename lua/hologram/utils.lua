@@ -29,7 +29,7 @@ function utils.base64_encode(data)
 end
 
 -- TIOCGWINZ is 1074295912
-function utils.get_cellsize()
+function utils.get_cell_size()
     local sz = ffi.new('winsize')
     ffi.C.ioctl(0, 1074295912, sz)
 
@@ -39,6 +39,37 @@ function utils.get_cellsize()
     }
 
     return cell_sz
+end
+
+-- Must be a better way?
+function utils.get_image_size(path)
+    local out = vim.loop.new_pipe(false)
+    local err = vim.loop.new_pipe(false)
+
+    local img_sz = {}
+
+    function on_read(err, data)
+        for p in data:gmatch("%S+") do 
+            img_sz[#img_sz+1] = p+0 -- to number
+        end
+    end
+
+    handle = vim.loop.spawn('identify', {
+        args = {'-format', '%h %w', path},
+        stdio = {out, err},
+    },
+    function()
+        out:read_stop()
+        err:read_stop()
+        out:close()
+        err:close()
+        handle:close()
+    end)
+
+    out:read_start(on_read)
+    err:read_start(on_read)
+
+    return img_sz
 end
 
 return utils

@@ -15,7 +15,7 @@ function Renderer:new(opts)
     local obj = setmetatable({
         protocol = opts.protocol or render.detect(),
         buf = opts.buf or vim.api.nvim_get_current_buf(),
-        pos_list = {},
+        region_list = {},
         -- opts go here
     }, self)
 
@@ -58,11 +58,15 @@ function Renderer:transmit(id, source, opts)
     opts.row = opts.row or cur_row
     opts.col = opts.col or cur_col
 
-    render.cursor_write_move(opts.row, opts.col)
-    self.pos_list[id] = {
-        col = opts.col,
+    local height, width = unpack(utils.get_image_size(source))
+    self.region_list[id] = {
         row = opts.row,
+        col = opts.col,
+        height = height,
+        width = width,
     }
+
+    render.cursor_write_move(opts.row, opts.col)
 
     local keys = {
         i = id,
@@ -155,9 +159,9 @@ function Renderer:adjust(id, opts)
     }
 
     -- Replace the last placement of this image
-    local pos = self.pos_list[id]
-    if pos then
-        render.cursor_write_move(pos.row, pos.col)
+    local rg = self.region_list[id]
+    if rg then
+        render.cursor_write_move(rg.row, rg.col)
         self:delete(id, { free = false, })
     end
 
