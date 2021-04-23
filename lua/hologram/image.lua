@@ -1,23 +1,29 @@
 local utils = require('hologram.utils')
+local magick = require('hologram.magick')
 
-local render = {}
+local image = {}
 
-local stdout = vim.loop.new_pipe(false)
+local stdout = vim.loop.new_pipe()
 stdout:open(1)
 
-local Renderer = {}
-Renderer.__index = Renderer
+local Image = {}
+Image.__index = Image
 
-function Renderer:new(opts)
+function Image:new(opts)
     opts = opts or {}
-    -- asserts go here
+    local cur_row, cur_col = unpack(vim.api.nvim_win_get_cursor(0))
 
     local obj = setmetatable({
-        protocol = opts.protocol or render.detect(),
-        buf = opts.buf or vim.api.nvim_get_current_buf(),
-        region_list = {},
-        -- opts go here
+        id = opts.id or nil,
+        source = opts.source or nil,
+        row = opts.row or cur_row,
+        col = opts.col or cur_col,
     }, self)
+
+    -- self.height = ...
+    -- self.width = ...
+
+    obj:transmit()
 
     return obj
 end
@@ -41,46 +47,29 @@ end
 
         format  Format in which image data is sent. TODO:
 
-        height 
+        height
 
-        width  
-
-        col
-
-        row
+        width
 --]]
-function Renderer:transmit(id, source, opts)
+function Image:transmit(opts)
     opts = opts or {}
-
-    -- Defaults
     opts.medium = opts.medium or 'direct'
-    opts.format = opts.format or 100
-    opts.row = opts.row or cur_row
-    opts.col = opts.col or cur_col
-
-    local height, width = unpack(utils.get_image_size(source))
-    self.region_list[id] = {
-        row = opts.row,
-        col = opts.col,
-        height = height,
-        width = width,
-    }
-
-    render.cursor_write_move(opts.row, opts.col)
 
     local keys = {
-        i = id,
+        i = self.id,
         t = opts.medium:sub(1, 1),
-        f = opts.format,
-        v = opts.height,
-        s = opts.width,
+        f = opts.format or 100,
+        v = opts.height or nil,
+        s = opts.width or nil,
         p = 0,
     }
+
+    image.move_cursor(self.row, self.col)
 
     local as
     as = vim.loop.new_async(function()
         local raw, chunk, cmd
-        raw = render.read_source(source)
+        raw = image.read_source(self.source)
 
         local first = true
         while #raw > 0 do
@@ -90,7 +79,7 @@ function Renderer:transmit(id, source, opts)
             keys.m = (#raw > 0) and 1 or 0
             keys.q = 2 -- suppress responses
 
-            cmd = '\x1b_Ga=T,' .. render.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
+            cmd = '\x1b_Ga=T,' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
             stdout:write(cmd)
 
             -- Not sure why this works, but it does
@@ -99,16 +88,15 @@ function Renderer:transmit(id, source, opts)
                 first = false 
             end
 
+
             keys = {}
         end
 
-        render.cursor_write_restore()
+        image.restore_cursor()
 
         as:close()
     end)
     as:send()
-
-    return id
 end
 
 --[[ Every transmitted image can be displayed an arbitrary number of times
@@ -135,17 +123,15 @@ end
                  • y: 0 (auto)
 ]]--
 
-function Renderer:adjust(id, opts)
+function Image:adjust(opts)
     opts = opts or {}
-
-    -- Defaults
     opts.crop = opts.crop or {}
     opts.area = opts.area or {}
     opts.edge = opts.edge or {}
     opts.offset = opts.offset or {}
 
     local keys = {
-        i = id,
+        i = self.id,
         z = opts.z_index,
         w = opts.crop[1],
         h = opts.crop[2],
@@ -159,18 +145,16 @@ function Renderer:adjust(id, opts)
     }
 
     -- Replace the last placement of this image
-    local rg = self.region_list[id]
-    if rg then
-        render.cursor_write_move(rg.row, rg.col)
-        self:delete(id, { free = false, })
-    end
+    self:delete({ free = false, })
 
-    stdout:write('\x1b_Ga=p,' .. render.keys_to_str(keys) .. '\x1b\\')
+    image.move_cursor(self.row, self.col)
 
-    render.cursor_write_restore()
+    stdout:write('\x1b_Ga=p,' .. image.keys_to_str(keys) .. '\x1b\\')
+
+    image.restore_cursor()
 end
 
---[[    Delete images by either specifying an image 'id' and/or a set of 'opts'.
+--[[    Deletes the image and all that satisfy requirements in opts. 
 
         free       When deleting image, free stored image data also.
                    Default is false
@@ -186,10 +170,8 @@ end
         cell  Delete all images that intersect the specified cell {col, row}
 ]]--
 
-function Renderer:delete(id, opts)
+function Image:delete(opts)
     opts = opts or {}
-
-    -- Defaults
     opts.free = opts.free or false
     opts.all = opts.all or false
 
@@ -197,10 +179,10 @@ function Renderer:delete(id, opts)
 
     local keys_set = {}
 
-    if id then
+    if self.id then
         keys_set[#keys_set+1] = {
             d = set_case('a'),
-            i = id,
+            i = self.id,
         }
     end
     if opts.all then
@@ -235,14 +217,11 @@ function Renderer:delete(id, opts)
     end
 
     for _, keys in ipairs(keys_set) do
-        stdout:write('\x1b_Ga=d,' .. render.keys_to_str(keys) .. '\x1b\\')
+        stdout:write('\x1b_Ga=d,' .. image.keys_to_str(keys) .. '\x1b\\')
     end
 end
 
-function Renderer:check_region(id)
-end
-
-function render.read_source(source)
+function image.read_source(source)
     -- TODO: if source is url, create tempfile
     local file = io.open(source, 'r')
     local raw = file:read('*all')
@@ -251,13 +230,9 @@ function render.read_source(source)
     return raw
 end
 
-function render.detect()
-    return 'kitty'
-end
-
 -- Works by calculating offset between cursor and desired position.
 -- Bypasses need to translate between terminal cols/rows and nvim window cols/rows ;)
-function render.cursor_write_move(row, col)
+function image.move_cursor(row, col)
     local cur_row, cur_col = unpack(vim.api.nvim_win_get_cursor(0))
     local dr = row - cur_row
     local dc = col - cur_col
@@ -282,11 +257,11 @@ function render.cursor_write_move(row, col)
     stdout:write('\x1b[' .. math.abs(dc) .. key2)
 end
 
-function render.cursor_write_restore()
+function image.restore_cursor()
     stdout:write('\x1b[u')
 end
 
-function render.keys_to_str(keys)
+function image.keys_to_str(keys)
     local str = ''
     for k, v in pairs(keys) do
         str = str..k..'='..v..','
@@ -294,6 +269,4 @@ function render.keys_to_str(keys)
     return str:sub(0, -2) -- chop trailing comma
 end
 
-render._Renderer = Renderer
-
-return render
+return Image

@@ -3,22 +3,20 @@ local magick = {}
 local Job = {}
 Job.__index = Job
 
-function magick.get_image_size(path)
-    local size = {}
-
+function magick.get_size(image)
     job = Job:new({
         cmd = 'identify',
-        args = {'-format', '%h %w', path},
+        args = {'-format', '%h %w', image.source},
         on_stdout = function(err, data) 
+            local size = {}
             for p in data:gmatch("%S+") do 
                 size[#size+1] = p+0 -- to number
             end
+            image.height, image.width = unpack(size)
         end,
     })
 
     job:start()
-
-    return size
 end
 
 function Job:new(opts)
@@ -31,7 +29,6 @@ function Job:new(opts)
         stdin = vim.loop.new_pipe(false),
         stdout = vim.loop.new_pipe(false),
         stderr = vim.loop.new_pipe(false),
-        done = false,
     }, self)
 
     return obj
@@ -47,7 +44,6 @@ function Job:start()
         self.safe_close(self.stdout)
         self.safe_close(self.stderr)
         self.safe_close(handle)
-        self.done = true
     end)
 
     self.stdin:read_start(self.on_stdin)
