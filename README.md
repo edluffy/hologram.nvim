@@ -36,17 +36,17 @@ Misc:
 - [ ] Switch to bare C implementation for base64 image encoding.
 
 ## Exposed API
-There are plans for parts of Hologram to be able to be used in other plugins, such as its render functionality.
-#### `Renderer:new(opts)`
+There are plans for parts of Hologram to be able to be used in other plugins, such as its image functionality.
+#### `Image:new(opts)`
 ```lua
-Renderer:new({
+Image:new({
 	buf = 0 -- default: current buffer
 })
 ```
 
-#### `Renderer:transmit(id, source, opts)`
+#### `Image:transmit(opts)`
 ```lua
-Renderer:transmit(id, source, {
+Image:transmit({
 	medium = 'direct' | 'file' | 'temp_file' | 'shared' -- default: 'direct'
 	format =  24 | 32 | 100 -- default: 32
 	height = -- Pixel height of image. default: auto
@@ -56,13 +56,13 @@ Renderer:transmit(id, source, {
 })
 ```
 
-#### `Renderer:adjust(id, opts)`
+#### `Image:adjust(opts)`
 Every image can be displayed an arbitrary number of times on the screen, with different adjustments applied. 
 These operations do not require the re-transmission of image data and are as a result very fast and lightweight.
 There should be no flicker or delay after an adjustment is made.
 
 ```lua
-Renderer:adjust(id, {
+Image:adjust({
     z_index = -- Vertical stacking order of the image, a negative z_index will draw below text. default: 0.
     crop = {} -- Cropped region of the image to display in pixels. default: show all of image
     area = {} -- Specifies terminal area to display image over, will stretch/squash if necessary. default: auto
@@ -70,12 +70,12 @@ Renderer:adjust(id, {
     offset = {} -- Position within first cell at which to begin displaying image (in pixels). Must be smaller than the size of a cell. default: {0, 0}
 })
 ```
-#### `Renderer:delete(id, opts)`
+#### `Image:delete(id, opts)`
 
-Delete images by specifying an image 'id'  and/or from set of 'opts'.
+Deletes the image and all that satisfy requirements in opts. 
 
 ```lua
-Renderer:delete(id, {
+Image:delete(id, {
     free = -- When deleting image, free stored image data also. default: false
     all = -- Delete all images.
     z_index = -- Delete all images that have the specified z-index.
