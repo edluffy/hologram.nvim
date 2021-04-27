@@ -9,22 +9,21 @@ stdout:open(1)
 local Image = {}
 Image.__index = Image
 
+-- source, row, col
 function Image:new(opts)
     opts = opts or {}
     local cur_row, cur_col = unpack(vim.api.nvim_win_get_cursor(0))
 
+    assert(opts.source, 'Error: no image source given')
+    opts.row = opts.row or cur_row
+    opts.col = opts.col or cur_col
+
     local obj = setmetatable({
-        id = opts.id or nil,
-        source = opts.source or nil,
-        row = opts.row or cur_row,
-        col = opts.col or cur_col,
+        id = vim.api.nvim_buf_set_extmark(0, vim.g.hologram_extmark_ns, opts.row-1, opts.col-1, {}),
+        source = opts.source
     }, self)
 
-    -- self.height = ...
-    -- self.width = ...
-
-    obj:transmit()
-
+    magick.get_size(obj)
     return obj
 end
 
@@ -50,6 +49,8 @@ end
         height
 
         width
+
+        hide
 --]]
 function Image:transmit(opts)
     opts = opts or {}
@@ -64,7 +65,11 @@ function Image:transmit(opts)
         p = 0,
     }
 
-    image.move_cursor(self.row, self.col)
+    local set_case = opts.hide and string.lower or string.upper
+
+    if not opts.hide then
+        image.move_cursor(self:ext())
+    end
 
     local as
     as = vim.loop.new_async(function()
@@ -79,7 +84,7 @@ function Image:transmit(opts)
             keys.m = (#raw > 0) and 1 or 0
             keys.q = 2 -- suppress responses
 
-            cmd = '\x1b_Ga=T,' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
+            cmd = '\x1b_Ga='.. set_case('t') .. ',' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
             stdout:write(cmd)
 
             -- Not sure why this works, but it does
@@ -92,7 +97,9 @@ function Image:transmit(opts)
             keys = {}
         end
 
-        image.restore_cursor()
+        if not opts.hide then
+            image.restore_cursor()
+        end
 
         as:close()
     end)
@@ -147,7 +154,7 @@ function Image:adjust(opts)
     -- Replace the last placement of this image
     self:delete({ free = false, })
 
-    image.move_cursor(self.row, self.col)
+    image.move_cursor(self:ext())
 
     stdout:write('\x1b_Ga=p,' .. image.keys_to_str(keys) .. '\x1b\\')
 
@@ -179,12 +186,11 @@ function Image:delete(opts)
 
     local keys_set = {}
 
-    if self.id then
-        keys_set[#keys_set+1] = {
-            d = set_case('a'),
-            i = self.id,
-        }
-    end
+    keys_set[#keys_set+1] = {
+        d = set_case('a'),
+        i = self.id,
+    }
+
     if opts.all then
         keys_set[#keys_set+1] = {
             d = set_case('a'),
@@ -219,6 +225,16 @@ function Image:delete(opts)
     for _, keys in ipairs(keys_set) do
         stdout:write('\x1b_Ga=d,' .. image.keys_to_str(keys) .. '\x1b\\')
     end
+end
+
+function Image:move(row, col)
+    vim.api.nvim_buf_set_extmark(0, vim.g.hologram_extmark_ns, row, col, {
+        id = self.id
+    })
+end
+
+function Image:ext()
+    return unpack(vim.api.nvim_buf_get_extmark_by_id(0, vim.g.hologram_extmark_ns, self.id, {}))
 end
 
 function image.read_source(source)

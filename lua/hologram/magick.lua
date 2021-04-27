@@ -4,10 +4,12 @@ local Job = {}
 Job.__index = Job
 
 function magick.get_size(image)
+    print(image.source)
     job = Job:new({
         cmd = 'identify',
         args = {'-format', '%h %w', image.source},
         on_stdout = function(err, data) 
+            assert(not err, err)
             local size = {}
             for p in data:gmatch("%S+") do 
                 size[#size+1] = p+0 -- to number
