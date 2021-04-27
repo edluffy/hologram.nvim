@@ -48,7 +48,7 @@ function hologram.scroll_images()
         local id, row, col = unpack(ext)
         local edge_y = math.max(0, (top-row)*cellsize.y)
         local crop_y = math.min(img.height, (bot-row+1)*cellsize.y)
-        local crop_x = right*cellsize.x
+        local crop_x = right*cellsize.x - col*cellsize.x
 
         generated_images[id]:adjust({ 
             edge = {0, edge_y},
