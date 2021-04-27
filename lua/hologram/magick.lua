@@ -4,7 +4,6 @@ local Job = {}
 Job.__index = Job
 
 function magick.get_size(image)
-    print(image.source)
     job = Job:new({
         cmd = 'identify',
         args = {'-format', '%h %w', image.source},

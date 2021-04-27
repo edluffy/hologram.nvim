@@ -21,36 +21,49 @@ function hologram.setup(opts)
     hologram.create_autocmds()
 end
 
--- Scroll all images in viewport (and within winwidth/2 of viewport bounds)
-function hologram.scroll_images()
+-- Get all extmarks in viewport (and within winwidth/2 of viewport bounds)
+function hologram.get_viewport_extmarks()
     local top = vim.fn.line('w0')
     local bot = vim.fn.line('w$')
 
-    local view_top = math.max(0, top-(bot-top)/2)
-    local view_bot = bot+(bot-top)/2
+    local view_top = math.floor(math.max(0, top-(bot-top)/2))
+    local view_bot = math.floor(bot+(bot-top)/2)
 
-    local ext_list = vim.api.nvim_buf_get_extmarks(0,
+    return vim.api.nvim_buf_get_extmarks(0,
         vim.g.hologram_extmark_ns,
         {view_top, 0},
         {view_bot, -1},
     {})
 
+end
 
-    --print(vim.inspect(ext_list))
+function hologram.scroll_images()
+    local top = vim.fn.line('w0')
+    local bot = vim.fn.line('w$')
+    local right = vim.fn.winwidth(0)
+
+    local ext_list = hologram.get_viewport_extmarks()
 
     for _, ext in ipairs(ext_list) do
         local id, row, col = unpack(ext)
         local edge_y = math.max(0, (top-row)*cellsize.y)
         local crop_y = math.min(img.height, (bot-row+1)*cellsize.y)
+        local crop_x = right*cellsize.x
 
         generated_images[id]:adjust({ 
             edge = {0, edge_y},
-            crop = {0, crop_y},
+            crop = {crop_x, crop_y},
         })
     end
 end
 
-function hologram.toggle_images()
+function hologram.show_images()
+    local ext_list = hologram.get_viewport_extmarks()
+
+    for _, ext in ipairs(ext_list) do
+        local id, row, col = unpack(ext)
+        generated_images[id]:adjust()
+    end
 end
 
 function hologram.clear_images()
