@@ -18,8 +18,11 @@ function Image:new(opts)
     opts.row = opts.row or cur_row
     opts.col = opts.col or cur_col
 
+    local buf = vim.api.nvim_get_current_buf()
+    local ext = vim.api.nvim_buf_set_extmark(0, vim.g.hologram_extmark_ns, opts.row, opts.col, {})
+
     local obj = setmetatable({
-        id = vim.api.nvim_buf_set_extmark(0, vim.g.hologram_extmark_ns, opts.row-1, opts.col-1, {}),
+        id = buf*100 + ext,
         source = opts.source
     }, self)
 
@@ -149,10 +152,8 @@ function Image:adjust(opts)
         X = opts.offset[1],
         Y = opts.offset[2],
         q = 2, -- suppress responses
+        p = 1,
     }
-
-    -- Replace the last placement of this image
-    self:delete({ free = false, })
 
     image.move_cursor(self:ext())
 
@@ -187,7 +188,6 @@ function Image:delete(opts)
     local keys_set = {}
 
     keys_set[#keys_set+1] = {
-        d = set_case('a'),
         i = self.id,
     }
 
@@ -229,12 +229,12 @@ end
 
 function Image:move(row, col)
     vim.api.nvim_buf_set_extmark(0, vim.g.hologram_extmark_ns, row, col, {
-        id = self.id
+        id = self.id % 100
     })
 end
 
 function Image:ext()
-    return unpack(vim.api.nvim_buf_get_extmark_by_id(0, vim.g.hologram_extmark_ns, self.id, {}))
+    return unpack(vim.api.nvim_buf_get_extmark_by_id(0, vim.g.hologram_extmark_ns, self.id % 100, {}))
 end
 
 function image.read_source(source)

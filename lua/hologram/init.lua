@@ -22,7 +22,7 @@ function hologram.setup(opts)
 end
 
 -- Get all extmarks in viewport (and within winwidth/2 of viewport bounds)
-function hologram.get_viewport_extmarks()
+function hologram.viewport_get_extmarks()
     local top = vim.fn.line('w0')
     local bot = vim.fn.line('w$')
 
@@ -34,35 +34,36 @@ function hologram.get_viewport_extmarks()
         {view_top, 0},
         {view_bot, -1},
     {})
+end
 
+-- Returns {top, bot, left, right} area of image that can be displayed.
+function hologram.viewport_check_region(img)
+    local wintop = vim.fn.line('w0')
+    local winbot = vim.fn.line('w$')
+    local winleft = 0
+    local winright = vim.fn.winwidth(0)
+
+    local row, col = img:ext()
+    local top = math.max(0, (wintop-row)*cellsize.y)
+    local bot = math.min(img.height, (winbot-row+1)*cellsize.y)
+    local right = winright*cellsize.x - col*cellsize.x
+
+    return {top=top, bot=bot, left=0, right=right}
 end
 
 function hologram.scroll_images()
-    local top = vim.fn.line('w0')
-    local bot = vim.fn.line('w$')
-    local right = vim.fn.winwidth(0)
+    local ext_list = hologram.viewport_get_extmarks()
+    local buf = vim.api.nvim_get_current_buf()
 
-    local ext_list = hologram.get_viewport_extmarks()
-
+    --print(vim.inspect(generated_images))
     for _, ext in ipairs(ext_list) do
-        local id, row, col = unpack(ext)
-        local edge_y = math.max(0, (top-row)*cellsize.y)
-        local crop_y = math.min(img.height, (bot-row+1)*cellsize.y)
-        local crop_x = right*cellsize.x - col*cellsize.x
+        local img = generated_images[buf*100 + ext[1]]
+        local rg = hologram.viewport_check_region(img)
 
-        generated_images[id]:adjust({ 
-            edge = {0, edge_y},
-            crop = {crop_x, crop_y},
+        img:adjust({ 
+            edge = {rg.left, rg.top},
+            crop = {rg.right, rg.bot},
         })
-    end
-end
-
-function hologram.show_images()
-    local ext_list = hologram.get_viewport_extmarks()
-
-    for _, ext in ipairs(ext_list) do
-        local id, row, col = unpack(ext)
-        generated_images[id]:adjust()
     end
 end
 
@@ -77,20 +78,18 @@ end
 
 function hologram.gen_inline_md()
     local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
-
-    hologram.clear_images()
+    --hologram.clear_images()
 
     for row, line in ipairs(lines) do
-        local col = #line
         --line = line:match('!%[[^%]]%]%((.-%).)%s("(.[^"])")%s-%)')
         local image_link = line:match('!%[.-%]%(.-%)')
         if image_link then
             local source = image_link:match('%((.+)%)')
             --magick.validate_source(source)
-            img = image:new({
+            local img = image:new({
                 source = source,
-                row = row,
-                col = col,
+                row = row-1,
+                col = 0,
             })
             generated_images[img.id] = img
             img:transmit({ hide = true, })
