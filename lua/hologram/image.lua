@@ -71,7 +71,7 @@ function Image:transmit(opts)
     local set_case = opts.hide and string.lower or string.upper
 
     if not opts.hide then
-        image.move_cursor(self:ext())
+        image.move_cursor(self:pos())
     end
 
     local as
@@ -155,7 +155,7 @@ function Image:adjust(opts)
         p = 1,
     }
 
-    image.move_cursor(self:ext())
+    image.move_cursor(self:pos())
 
     stdout:write('\x1b_Ga=p,' .. image.keys_to_str(keys) .. '\x1b\\')
 
@@ -225,16 +225,28 @@ function Image:delete(opts)
     for _, keys in ipairs(keys_set) do
         stdout:write('\x1b_Ga=d,' .. image.keys_to_str(keys) .. '\x1b\\')
     end
+
+    if opts.free then
+        vim.api.nvim_buf_del_extmark(self:buf(), vim.g.hologram_extmark_ns, self:ext())
+    end
 end
 
 function Image:move(row, col)
-    vim.api.nvim_buf_set_extmark(0, vim.g.hologram_extmark_ns, row, col, {
-        id = self.id % 100
+    vim.api.nvim_buf_set_extmark(self:buf(), vim.g.hologram_extmark_ns, row, col, {
+        id = self:ext()
     })
 end
 
+function Image:pos()
+    return unpack(vim.api.nvim_buf_get_extmark_by_id(self:buf(), vim.g.hologram_extmark_ns, self:ext(), {}))
+end
+
+function Image:buf()
+    return math.floor(self.id/100)
+end
+
 function Image:ext()
-    return unpack(vim.api.nvim_buf_get_extmark_by_id(0, vim.g.hologram_extmark_ns, self.id % 100, {}))
+    return self.id % 100
 end
 
 function image.read_source(source)
