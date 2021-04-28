@@ -19,7 +19,7 @@ function Image:new(opts)
     opts.col = opts.col or cur_col
 
     local buf = vim.api.nvim_get_current_buf()
-    local ext = vim.api.nvim_buf_set_extmark(0, vim.g.hologram_extmark_ns, opts.row, opts.col, {})
+    local ext = vim.api.nvim_buf_set_extmark(buf, vim.g.hologram_extmark_ns, opts.row, opts.col, {})
 
     local obj = setmetatable({
         id = buf*100 + ext,
@@ -65,7 +65,7 @@ function Image:transmit(opts)
         f = opts.format or 100,
         v = opts.height or nil,
         s = opts.width or nil,
-        p = 0,
+        p = 1,
     }
 
     local set_case = opts.hide and string.lower or string.upper
@@ -74,39 +74,32 @@ function Image:transmit(opts)
         image.move_cursor(self:pos())
     end
 
-    local as
-    as = vim.loop.new_async(function()
-        local raw, chunk, cmd
-        raw = image.read_source(self.source)
+    local raw, chunk
+    local cmds = {}
+    
+    raw = image.read_source(self.source)
+    while #raw > 0 do
+        chunk = raw:sub(0, 4096)
+        raw   = raw:sub(4097, -1)
 
-        local first = true
-        while #raw > 0 do
-            chunk = raw:sub(0, 4096)
-            raw   = raw:sub(4097, -1)
+        keys.m = (#raw > 0) and 1 or 0
+        keys.q = 2 -- suppress responses
 
-            keys.m = (#raw > 0) and 1 or 0
-            keys.q = 2 -- suppress responses
+        cmds[#cmds+1] = 
+            '\x1b_Ga='.. set_case('t') .. ',' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
 
-            cmd = '\x1b_Ga='.. set_case('t') .. ',' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
-            stdout:write(cmd)
+        keys = {}
+    end
 
-            -- Not sure why this works, but it does
-            if first then 
-                stdout:write(cmd)
-                first = false 
-            end
+    image.async_safe_write(cmds)
 
+    if not opts.hide then
+        image.restore_cursor()
+    end
 
-            keys = {}
-        end
-
-        if not opts.hide then
-            image.restore_cursor()
-        end
-
-        as:close()
-    end)
-    as:send()
+    --    as:close()
+    --end)
+    --as:send()
 end
 
 --[[ Every transmitted image can be displayed an arbitrary number of times
@@ -157,7 +150,7 @@ function Image:adjust(opts)
 
     image.move_cursor(self:pos())
 
-    stdout:write('\x1b_Ga=p,' .. image.keys_to_str(keys) .. '\x1b\\')
+    image.async_safe_write('\x1b_Ga=p,' .. image.keys_to_str(keys) .. '\x1b\\')
 
     image.restore_cursor()
 end
@@ -223,7 +216,7 @@ function Image:delete(opts)
     end
 
     for _, keys in ipairs(keys_set) do
-        stdout:write('\x1b_Ga=d,' .. image.keys_to_str(keys) .. '\x1b\\')
+        image.async_safe_write('\x1b_Ga=d,' .. image.keys_to_str(keys) .. '\x1b\\')
     end
 
     if opts.free then
@@ -280,13 +273,13 @@ function image.move_cursor(row, col)
         key2 = 'C' -- left
     end
 
-    stdout:write('\x1b[s') -- save position
-    stdout:write('\x1b[' .. math.abs(dr) .. key1)
-    stdout:write('\x1b[' .. math.abs(dc) .. key2)
+    image.async_safe_write('\x1b[s') -- save position
+    image.async_safe_write('\x1b[' .. math.abs(dr) .. key1)
+    image.async_safe_write('\x1b[' .. math.abs(dc) .. key2)
 end
 
 function image.restore_cursor()
-    stdout:write('\x1b[u')
+    image.async_safe_write('\x1b[u')
 end
 
 function image.keys_to_str(keys)
@@ -295,6 +288,19 @@ function image.keys_to_str(keys)
         str = str..k..'='..v..','
     end
     return str:sub(0, -2) -- chop trailing comma
+end
+
+function image.async_safe_write(data)
+    local as
+    as = vim.loop.new_async(function()
+        -- Avoiding EAGIN error
+        if type(data) == 'table' and stdout:get_write_queue_size() == 0 then
+            stdout:write(data[1])
+        end
+        stdout:write(data)
+        as:close()
+    end)
+    as:send()
 end
 
 return Image
