@@ -141,7 +141,7 @@ end
 function hologram.create_autocmds()
     vim.cmd("augroup Hologram") vim.cmd("autocmd!")
     --vim.cmd("silent autocmd BufEnter * :lua require('hologram').gen_inline_md()")
-    vim.cmd("silent autocmd WinScrolled * :lua require('hologram').buf_update_viewport()")
+    --vim.cmd("silent autocmd WinScrolled * :lua require('hologram').buf_update_viewport()")
     --vim.cmd("silent autocmd BufWinEnter * :lua require('hologram').gen_inline_md()")
     vim.cmd("augroup END")
 end

@@ -50,14 +50,17 @@ Images are objects that comprise of an `id`, `source`, and an `extmark`.
 Minimal example:
 
 ```lua
-my_image = Image:new({
-    source = '/Users/..../Documents/my_image.png'
-    row = 10, col = 0,
+local my_image = require('hologram.image'):new({
+    source = '/Users/..../Documents/my-image.png',
+    row = 11,
+    col = 0,
 })
+
+my_image:transmit() -- send image data to terminal
 
 -- Move image 5 rows down after 1 second
 vim.defer_fn(function()
-    my_image:move({15, 0})
+    my_image:move(15, 0)
     my_image:adjust() -- must adjust to update image
 end, 1000)
 
