@@ -43,18 +43,6 @@ end
 ]]--
 
 
---[[ 
-        medium  Transmission medium used. Accepted values are
-                'direct'(default), 'file', 'temp_file' or 'shared'.
-
-        format  Format in which image data is sent. TODO:
-
-        height
-
-        width
-
-        hide
---]]
 function Image:transmit(opts)
     opts = opts or {}
     opts.medium = opts.medium or 'direct'
@@ -96,35 +84,7 @@ function Image:transmit(opts)
     if not opts.hide then
         image.restore_cursor()
     end
-
-    --    as:close()
-    --end)
-    --as:send()
 end
-
---[[ Every transmitted image can be displayed an arbitrary number of times
-     on the screen in different locations.
-
-        z_index  Vertical stacking order of the image 0 by default.
-                 Negative z_index will draw below text.
-
-        crop     Cropped region of the image to display in pixels
-                 • height: 0 (all)
-                 •  width: 0 (all)
-
-        area     Specifies terminal area to display image over,
-                 will stretch/squash if necessary
-                 • cols: 0 (auto)
-                 • rows: 0 (auto)
-
-        edge     TODO: can cause crash if abused ;(
-
-        offset   Position within first cell at which to begin
-                 displaying image in pixels. Must be smaller
-                 than size of cell.
-                 • x: 0 (auto)
-                 • y: 0 (auto)
-]]--
 
 function Image:adjust(opts)
     opts = opts or {}
@@ -154,22 +114,6 @@ function Image:adjust(opts)
 
     image.restore_cursor()
 end
-
---[[    Deletes the image and all that satisfy requirements in opts. 
-
-        free       When deleting image, free stored image data also.
-                   Default is false
-
-        all        Clear all images
-
-        z_index    Delete all images that have the specified z-index.
-
-        col  Delete all images that intersect the specified column.
-
-        row  Delete all images that intersect the specified row.
-
-        cell  Delete all images that intersect the specified cell {col, row}
-]]--
 
 function Image:delete(opts)
     opts = opts or {}
