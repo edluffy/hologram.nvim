@@ -12,9 +12,8 @@ Image.__index = Image
 -- source, row, col
 function Image:new(opts)
     opts = opts or {}
-    local cur_row, cur_col = unpack(vim.api.nvim_win_get_cursor(0))
 
-    assert(opts.source, 'Error: no image source given')
+    local cur_row, cur_col = unpack(vim.api.nvim_win_get_cursor(0))
     opts.row = opts.row or cur_row
     opts.col = opts.col or cur_col
 
@@ -26,7 +25,6 @@ function Image:new(opts)
         source = opts.source
     }, self)
 
-    magick.get_size(obj)
     return obj
 end
 
@@ -166,6 +164,24 @@ function Image:delete(opts)
     if opts.free then
         vim.api.nvim_buf_del_extmark(self:buf(), vim.g.hologram_extmark_ns, self:ext())
     end
+end
+
+function Image:run_jobs(jobs, on_done)
+    local timer = vim.loop.new_timer()
+    local cnt = 1
+
+    jobs[cnt]:start()
+    vim.loop.timer_start(timer, 0, 100, function()
+        if jobs[cnt].done then
+            cnt = cnt+1
+            if jobs[cnt] == nil then
+                vim.loop.close(timer)
+                if on_done then on_done() end
+            else
+                jobs[cnt]:start()
+            end
+        end
+    end)
 end
 
 function Image:move(row, col)

@@ -3,27 +3,29 @@ local magick = {}
 local Job = {}
 Job.__index = Job
 
-function magick.get_size(image)
-    job = Job:new({
+function magick.identify_size(image)
+    local job =  Job:new({
         cmd = 'identify',
         args = {'-format', '%h %w', image.source},
         on_stdout = function(err, data) 
             assert(not err, err)
-            local size = {}
-            for p in data:gmatch("%S+") do 
-                size[#size+1] = p+0 -- to number
+            if data then
+                local size = {}
+                for p in data:gmatch("%S+") do 
+                    size[#size+1] = p+0 -- to number
+                end
+                image.height, image.width = unpack(size)
             end
-            image.height, image.width = unpack(size)
         end,
     })
-
-    job:start()
+    return job
 end
 
 function Job:new(opts)
     local obj = setmetatable({
         cmd = opts.cmd,
         args = opts.args,
+        done = false,
         on_stdin = opts.on_stdin or function() end,
         on_stdout = opts.on_stdout or function() end,
         on_stderr = opts.on_stderr or function() end,
@@ -45,12 +47,12 @@ function Job:start()
         self.safe_close(self.stdout)
         self.safe_close(self.stderr)
         self.safe_close(handle)
+        self.done = true
     end)
 
     self.stdin:read_start(self.on_stdin)
     self.stdout:read_start(self.on_stdout)
     self.stderr:read_start(self.on_stderr)
-
 end
 
 function Job:stop()
