@@ -1,5 +1,6 @@
-local image = require('hologram.image')
+local Image = require('hologram.image')
 local utils = require('hologram.utils')
+local magick = require('hologram.magick')
 
 local hologram = {}
 
@@ -9,7 +10,7 @@ local DEFAULT_OPTS = {
 }
 
 local cellsize = utils.get_cell_size()
-local _buffer_images = {}
+local global_images = {}
 
 function hologram.setup(opts)
     opts = opts or {}
@@ -21,9 +22,12 @@ function hologram.setup(opts)
     hologram.create_autocmds()
 end
 
-
 -- Returns {top, bot, left, right} area of image that can be displayed.
-function hologram.viewport_check_region(img)
+function hologram.check_region(img)
+    if not (img.height and img.width) then
+        return {top=nil, bot=nil, left=nil, right=nil}
+    end
+
     local wintop = vim.fn.line('w0')
     local winbot = vim.fn.line('w$')
     local winleft = 0
@@ -37,46 +41,9 @@ function hologram.viewport_check_region(img)
     return {top=top, bot=bot, left=0, right=right}
 end
 
-function hologram.buf_update_viewport(buf)
-    local buf = buf or vim.api.nvim_get_current_buf()
-
-    for _, ext_loc in ipairs(hologram.buf_get_ext_loclist(buf)) do
-        local ext, row, col = unpack(ext_loc)
-        
-        local img = hologram.buf_get_image(buf, ext)
-        local rg = hologram.viewport_check_region(img)
-
-        img:adjust({ 
-            edge = {rg.left, rg.top},
-            crop = {rg.right, rg.bot},
-        })
-    end
-end
-
-function hologram.buf_clear_images(buf)
-    if _buffer_images[buf] then
-        for _, img in ipairs(_buffer_images[buf]) do
-            img:delete({ free = true, })
-        end
-        _buffer_images[buf] = {}
-    end
-end
-
--- Return image in 'buf' linked to 'ext'
-function hologram.buf_get_image(buf, ext)
-    local img = nil
-    if _buffer_images[buf] then
-        for _, i in ipairs(_buffer_images[buf]) do 
-            if i:ext() == ext then
-                img = i
-            end
-        end
-    end
-    return img
-end
-
 -- Get all extmarks in viewport (and within winwidth/2 of viewport bounds)
-function hologram.buf_get_ext_loclist(buf)
+function hologram.get_ext_loclist(buf)
+    if buf == 0 then buf = vim.api.nvim_get_current_buf() end
     local top = vim.fn.line('w0')
     local bot = vim.fn.line('w$')
 
@@ -90,59 +57,87 @@ function hologram.buf_get_ext_loclist(buf)
     {})
 end
 
-function hologram.buf_add_images(buf, images)
-    if not _buffer_images[buf] then
-        _buffer_images[buf] = {}
-    end
+function hologram.update_images(buf)
+    if buf == 0 then buf = vim.api.nvim_get_current_buf() end
 
-    for _, img in ipairs(images) do
-        table.insert(_buffer_images[buf], img)
-        img:transmit({ hide = true, })
+    for _, ext_loc in ipairs(hologram.get_ext_loclist()) do
+        local ext, row, col = unpack(ext_loc)
+
+        local img = hologram.get_image(buf, ext)
+        local rg = hologram.check_region(img)
+
+        img:adjust({ 
+            edge = {rg.left, rg.top},
+            crop = {rg.right, rg.bot},
+        })
     end
 end
 
-function hologram.gen_inline_md()
-    local buf = vim.api.nvim_get_current_buf()
-    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+function hologram.clear_images(buf)
+    if buf == 0 then buf = vim.api.nvim_get_current_buf() end
 
-    hologram.buf_clear_images(buf)
-
-    local images = {}
-    for row, line in ipairs(lines) do
-        --line = line:match('!%[[^%]]%]%((.-%).)%s("(.[^"])")%s-%)')
-        local image_link = line:match('!%[.-%]%(.-%)')
-        if image_link then
-            local source = image_link:match('%((.+)%)')
-            --magick.validate_source(source)
-            images[#images+1] = image:new({
-                source = source,
-                row = row-1,
-                col = 0,
-            })
+    for _, i in ipairs(global_images) do
+        if i:buf() == buf then
+            i:delete({free = true})
         end
     end
-    hologram.buf_add_images(buf, images)
+end
 
-    -- oneshot timer with 0 timeout. Callback fires on the next event loop iteration
+function hologram.add_image(buf, source, row, col)
+    if buf == 0 then buf = vim.api.nvim_get_current_buf() end
+
+    img = Image:new({
+        source = source,
+        buf = buf,
+        row = row-1,
+        col = 0,
+    })
+    img:transmit({hide = true})
+    img:run_jobs({
+        magick.identify_size(img)
+    })
+
+    global_images[#global_images+1] = img
+end
+
+-- Return image in 'buf' linked to 'ext'
+function hologram.get_image(buf, ext)
+    if buf == 0 then buf = vim.api.nvim_get_current_buf() end
+
+    local img = nil
+    for _, i in ipairs(global_images) do 
+        if i:buf() == buf and i:ext() == ext then
+            img = i
+        end
+    end
+    return img
+end
+
+function hologram.gen_images(buf, ft)
+    if buf == 0 then buf = vim.api.nvim_get_current_buf() end
+    ft = ft or vim.bo.filetype
+
+    local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+
+    if ft == 'markdown' then
+        for row, line in ipairs(lines) do
+            local image_link = line:match('!%[.-%]%(.-%)')
+            if image_link then
+                local source = image_link:match('%((.+)%)')
+                --magick.validate_source(source)
+                hologram.add_image(buf, source, row, col)
+            end
+        end
+    end
+
     vim.defer_fn(function()
-        hologram.buf_update_viewport(buf)
-    end, 0)
-end
-
-function hologram.gen_inline_tex()
-end
-
-function hologram.gen_preview_md()
-end
-
-function hologram.gen_preview_tex()
+        hologram.update_images(0)
+    end, 300)
 end
 
 function hologram.create_autocmds()
     vim.cmd("augroup Hologram") vim.cmd("autocmd!")
-    --vim.cmd("silent autocmd BufEnter * :lua require('hologram').gen_inline_md()")
-    --vim.cmd("silent autocmd WinScrolled * :lua require('hologram').buf_update_viewport()")
-    --vim.cmd("silent autocmd BufWinEnter * :lua require('hologram').gen_inline_md()")
+    vim.cmd("silent autocmd WinScrolled * :lua require('hologram').update_images(0)")
     vim.cmd("augroup END")
 end
 

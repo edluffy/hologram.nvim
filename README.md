@@ -13,6 +13,22 @@ Using [vim-plug](https://github.com/junegunn/vim-plug):
 ```vimscript
 Plug 'edluffy/hologram.nvim'
 ```
+
+## Usage
+Hologram.nvim allows you to view images directly inside a Neovim buffer (let buf=0 for current buffer):
+
+- `:lua require('hologram').add_image(buf, '/Users/..../Documents/my-image.png', row, col)`
+    - Add an image to buffer at position row, col.
+
+- `:lua require('hologram').gen_images(buf, ft)`
+    - Generate buffer images for certain filetypes (only 'markdown' currently)
+
+- `:lua require('hologram').clear_images(buf)`
+    - Remove all images from buffer.
+
+- `:lua require('hologram').update_images(buf)`
+    - Repositions buffer images in viewport (automatically done on WinScrolled event)
+
 ## Roadmap
 Core functionality:
 - [ ] Support for [Kitty Graphics Protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol.html)
