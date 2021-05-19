@@ -204,7 +204,13 @@ end
 
 function image.read_source(source)
     -- TODO: if source is url, create tempfile
-    local file = io.open(source, 'r')
+    local file, error = io.open(source, 'r')
+
+    if not file then
+		vim.api.nvim_err_writeln("Unable to open image file: " .. error)
+		return
+	end
+
     local raw = file:read('*all')
     io.close(file)
     raw = utils.base64_encode(raw)
