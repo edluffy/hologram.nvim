@@ -3,7 +3,7 @@ local magick = require('hologram.magick')
 
 local image = {}
 
-local stdout = vim.loop.new_pipe()
+local stdout = vim.loop.new_pipe(false)
 stdout:open(1)
 
 local Image = {}
