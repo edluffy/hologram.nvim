@@ -207,9 +207,9 @@ function image.read_source(source)
     local file, error = io.open(source, 'r')
 
     if not file then
-		vim.api.nvim_err_writeln("Unable to open image file: " .. error)
-		return
-	end
+        vim.api.nvim_err_writeln("Unable to open image file: " .. error)
+        return
+    end
 
     local raw = file:read('*all')
     io.close(file)
