@@ -64,20 +64,22 @@ function Image:transmit(opts)
     local cmds = {}
     
     raw = image.read_source(self.source)
-    while #raw > 0 do
-        chunk = raw:sub(0, 4096)
-        raw   = raw:sub(4097, -1)
+    if raw then
+        while #raw > 0 do
+            chunk = raw:sub(0, 4096)
+            raw   = raw:sub(4097, -1)
 
-        keys.m = (#raw > 0) and 1 or 0
-        keys.q = 2 -- suppress responses
+            keys.m = (#raw > 0) and 1 or 0
+            keys.q = 2 -- suppress responses
 
-        cmds[#cmds+1] = 
-            '\x1b_Ga='.. set_case('t') .. ',' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
+            cmds[#cmds+1] = 
+                '\x1b_Ga='.. set_case('t') .. ',' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
 
-        keys = {}
+            keys = {}
+        end
+
+        image.async_safe_write(cmds)
     end
-
-    image.async_safe_write(cmds)
 
     if not opts.hide then
         image.restore_cursor()
