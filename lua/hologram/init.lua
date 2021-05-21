@@ -23,9 +23,10 @@ function hologram.setup(opts)
 end
 
 -- Returns {top, bot, left, right} area of image that can be displayed.
+-- nil if completely hidden
 function hologram.check_region(img)
     if not (img.height and img.width) then
-        return {top=nil, bot=nil, left=nil, right=nil}
+        return nil
     end
 
     local wintop = vim.fn.line('w0')
@@ -37,6 +38,10 @@ function hologram.check_region(img)
     local top = math.max(0, (wintop-row)*cellsize.y)
     local bot = math.min(img.height, (winbot-row+1)*cellsize.y)
     local right = winright*cellsize.x - col*cellsize.x
+
+    if top > bot-1 then
+        return nil
+    end
 
     return {top=top, bot=bot, left=0, right=right}
 end
@@ -66,10 +71,14 @@ function hologram.update_images(buf)
         local img = hologram.get_image(buf, ext)
         local rg = hologram.check_region(img)
 
-        img:adjust({ 
-            edge = {rg.left, rg.top},
-            crop = {rg.right, rg.bot},
-        })
+        if rg then
+            img:adjust({ 
+                edge = {rg.left, rg.top},
+                crop = {rg.right, rg.bot},
+            })
+        else
+            img:delete({free = false})
+        end
     end
 end
 
