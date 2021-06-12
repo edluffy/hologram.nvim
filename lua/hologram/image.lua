@@ -1,5 +1,5 @@
 local utils = require('hologram.utils')
-local magick = require('hologram.magick')
+local Job = require('hologram.job')
 
 local image = {}
 
@@ -184,6 +184,23 @@ function Image:run_jobs(jobs, on_done)
             end
         end
     end)
+end
+
+function Image:get_size()
+    Job:new({
+        cmd = 'identify',
+        args = {'-format', '%h %w', self.source},
+        on_stdout = function(err, data) 
+            assert(not err, err)
+            if data then
+                local size = {}
+                for p in data:gmatch("%S+") do 
+                    size[#size+1] = p+0 -- to number
+                end
+                self.height, self.width = unpack(size)
+            end
+        end,
+    }):start()
 end
 
 function Image:move(row, col)

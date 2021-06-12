@@ -1,25 +1,5 @@
-local magick = {}
-
 local Job = {}
 Job.__index = Job
-
-function magick.identify_size(image)
-    local job =  Job:new({
-        cmd = 'identify',
-        args = {'-format', '%h %w', image.source},
-        on_stdout = function(err, data) 
-            assert(not err, err)
-            if data then
-                local size = {}
-                for p in data:gmatch("%S+") do 
-                    size[#size+1] = p+0 -- to number
-                end
-                image.height, image.width = unpack(size)
-            end
-        end,
-    })
-    return job
-end
 
 function Job:new(opts)
     local obj = setmetatable({
@@ -69,6 +49,4 @@ function Job:safe_close(handle)
     end
 end
 
-magick._Job = Job
-
-return magick
+return Job

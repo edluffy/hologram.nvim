@@ -1,6 +1,6 @@
 local Image = require('hologram.image')
 local utils = require('hologram.utils')
-local magick = require('hologram.magick')
+local Job = require('hologram.job')
 
 local hologram = {}
 
@@ -102,9 +102,7 @@ function hologram.add_image(buf, source, row, col)
         col = 0,
     })
     img:transmit({hide = true})
-    img:run_jobs({
-        magick.identify_size(img)
-    })
+    img:get_size()
 
     global_images[#global_images+1] = img
 end
@@ -133,7 +131,6 @@ function hologram.gen_images(buf, ft)
             local image_link = line:match('!%[.-%]%(.-%)')
             if image_link then
                 local source = image_link:match('%((.+)%)')
-                --magick.validate_source(source)
                 hologram.add_image(buf, source, row, col)
             end
         end
