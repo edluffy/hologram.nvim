@@ -1,4 +1,3 @@
-local utils = require('hologram.utils')
 local Job = require('hologram.job')
 
 local image = {}
@@ -58,34 +57,40 @@ function Image:transmit(opts)
 
     local set_case = opts.hide and string.lower or string.upper
 
-    if not opts.hide then
-        image.move_cursor(self:pos())
+    local cmd, args
+    if vim.fn.executable('base64') == 1 then
+        cmd = 'base64'
+        args = {self.source}
+    elseif vim.fn.executable('openssl') == 1 then
+        cmd = 'openssl'
+        args = {'base64', '-A', '-in', self.source}
+    else
+        vim.api.nvim_err_writeln("No base64 executable found, requires one of:"..
+            " coreutils, openssl")
+        return
     end
 
-    local raw, chunk
-    local cmds = {}
-    
-    raw = image.read_source(self.source)
-    if raw then
-        while #raw > 0 do
-            chunk = raw:sub(0, 4096)
-            raw   = raw:sub(4097, -1)
+    if not opts.hide then image.move_cursor(self:pos()) end
+    Job:new({
+        cmd = cmd,
+        args = args,
+        on_data = function(data) -- arrives in 8192 size chunks
+            local chunks = {}
+            chunks[1] = data:sub(0, 4096):gsub('%s+', '')
+            chunks[2] = data:sub(4097, -1):gsub('%s+', '')
 
-            keys.m = (#raw > 0) and 1 or 0
-            keys.q = 2 -- suppress responses
-
-            cmds[#cmds+1] = 
-                '\x1b_Ga='.. set_case('t') .. ',' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
-
-            keys = {}
-        end
-
-        image.async_safe_write(cmds)
-    end
-
-    if not opts.hide then
-        image.restore_cursor()
-    end
+            for _, chunk in ipairs(chunks) do
+                if #chunk > 0 then
+                    keys.m = (#chunk < 4096) and 0 or 1
+                    keys.q = 2 -- suppress responses
+                    image.async_write('\x1b_Ga='.. set_case('t') 
+                        .. ',' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\')
+                    keys = {}
+                end
+            end
+        end,
+    }):start()
+    if not opts.hide then image.restore_cursor() end
 end
 
 function Image:adjust(opts)
@@ -112,7 +117,7 @@ function Image:adjust(opts)
 
     image.move_cursor(self:pos())
 
-    image.async_safe_write('\x1b_Ga=p,' .. image.keys_to_str(keys) .. '\x1b\\')
+    image.async_write('\x1b_Ga=p,' .. image.keys_to_str(keys) .. '\x1b\\')
 
     image.restore_cursor()
 end
@@ -162,7 +167,7 @@ function Image:delete(opts)
     end
 
     for _, keys in ipairs(keys_set) do
-        image.async_safe_write('\x1b_Ga=d,' .. image.keys_to_str(keys) .. '\x1b\\')
+        image.async_write('\x1b_Ga=d,' .. image.keys_to_str(keys) .. '\x1b\\')
     end
 
     if opts.free then
@@ -224,21 +229,6 @@ function Image:ext()
     return self.id % 100
 end
 
-function image.read_source(source)
-    -- TODO: if source is url, create tempfile
-    local file, error = io.open(source, 'r')
-
-    if not file then
-        vim.api.nvim_err_writeln("Unable to open image file: " .. error)
-        return
-    end
-
-    local raw = file:read('*all')
-    io.close(file)
-    raw = utils.base64_encode(raw)
-    return raw
-end
-
 -- Works by calculating offset between cursor and desired position.
 -- Bypasses need to translate between terminal cols/rows and nvim window cols/rows ;)
 function image.move_cursor(row, col)
@@ -261,13 +251,13 @@ function image.move_cursor(row, col)
         key2 = 'C' -- left
     end
 
-    image.async_safe_write('\x1b[s') -- save position
-    image.async_safe_write('\x1b[' .. math.abs(dr) .. key1)
-    image.async_safe_write('\x1b[' .. math.abs(dc) .. key2)
+    image.async_write('\x1b[s') -- save position
+    image.async_write('\x1b[' .. math.abs(dr) .. key1)
+    image.async_write('\x1b[' .. math.abs(dc) .. key2)
 end
 
 function image.restore_cursor()
-    image.async_safe_write('\x1b[u')
+    image.async_write('\x1b[u')
 end
 
 function image.keys_to_str(keys)
@@ -278,13 +268,9 @@ function image.keys_to_str(keys)
     return str:sub(0, -2) -- chop trailing comma
 end
 
-function image.async_safe_write(data)
+function image.async_write(data)
     local as
     as = vim.loop.new_async(function()
-        -- Avoiding EAGIN error
-        if type(data) == 'table' and stdout:get_write_queue_size() == 0 then
-            stdout:write(data[1])
-        end
         stdout:write(data)
         as:close()
     end)

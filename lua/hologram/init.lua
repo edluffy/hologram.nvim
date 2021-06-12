@@ -1,5 +1,4 @@
 local Image = require('hologram.image')
-local utils = require('hologram.utils')
 local Job = require('hologram.job')
 
 local hologram = {}
