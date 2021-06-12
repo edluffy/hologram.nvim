@@ -28,17 +28,4 @@ function utils.base64_encode(data)
     end)..({ '', '==', '=' })[#data%3+1])
 end
 
--- TIOCGWINZ is 1074295912
-function utils.get_cell_size()
-    local sz = ffi.new('winsize')
-    ffi.C.ioctl(0, 1074295912, sz)
-
-    local cell_sz = {
-        y = sz.ws_ypixel/sz.ws_row, 
-        x = sz.ws_xpixel/sz.ws_col,
-    }
-
-    return cell_sz
-end
-
 return utils

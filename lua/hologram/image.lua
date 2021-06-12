@@ -25,23 +25,7 @@ function Image:new(opts)
         source = opts.source
     }, self)
 
-
-    if vim.fn.executable('identify') == 1 then
-        Job:new({
-            cmd = 'identify',
-            args = {'-format', '%h %w', obj.source},
-            on_data = function(data) 
-                local size = {}
-                for p in data:gmatch("%S+") do 
-                    size[#size+1] = p+0 -- to number
-                end
-                obj.height, obj.width = unpack(size)
-            end,
-        }):start()
-    else
-        vim.api.nvim_err_writeln("Unable to run command 'identify'."..
-            " Make sure ImageMagick is installed.")
-    end
+    obj:identify()
 
     return obj
 end
@@ -202,6 +186,24 @@ function Image:run_jobs(jobs, on_done)
             end
         end
     end)
+end
+
+function Image:identify()
+    -- Get image width + height
+    if vim.fn.executable('identify') == 1 then
+        Job:new({
+            cmd = 'identify',
+            args = {'-format', '%hx%w', self.source},
+            on_data = function(data) 
+                data = {data:match("(.+)x(.+)")}
+                self.height = tonumber(data[1])
+                self.width  = tonumber(data[2])
+            end,
+        }):start()
+    else
+        vim.api.nvim_err_writeln("Unable to run command 'identify'."..
+            " Make sure ImageMagick is installed.")
+    end
 end
 
 function Image:move(row, col)

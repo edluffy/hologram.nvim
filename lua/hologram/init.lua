@@ -9,7 +9,7 @@ local DEFAULT_OPTS = {
     protocol = 'kitty', -- hologram.detect()
 }
 
-local cellsize = utils.get_cell_size()
+local ws = {}
 local global_images = {}
 
 function hologram.setup(opts)
@@ -20,6 +20,25 @@ function hologram.setup(opts)
     vim.cmd("highlight default link HologramVirtualText LspDiagnosticsDefaultHint")
 
     hologram.create_autocmds()
+    hologram.get_window_size()
+end
+
+function hologram.get_window_size()
+    ws.col = vim.api.nvim_get_option('columns')
+    ws.row = vim.api.nvim_get_option('lines')
+    if vim.fn.executable('kitty') == 1 then
+        Job:new({
+            cmd = 'kitty',
+            args = {'+kitten', 'icat', '--print-window-size'},
+            on_data = function(data) 
+                data = {data:match("(.+)x(.+)")}
+                ws.xpixel = tonumber(data[1])
+                ws.ypixel  = tonumber(data[2])
+            end,
+        }):start()
+    else
+        vim.api.nvim_err_writeln("Unable to find Kitty executable")
+    end
 end
 
 -- Returns {top, bot, left, right} area of image that can be displayed.
@@ -28,6 +47,11 @@ function hologram.check_region(img)
     if not (img.height and img.width) then
         return nil
     end
+
+    local cellsize = {
+        y = ws.ypixel/ws.row, 
+        x = ws.xpixel/ws.col,
+    }
 
     local wintop = vim.fn.line('w0')
     local winbot = vim.fn.line('w$')
