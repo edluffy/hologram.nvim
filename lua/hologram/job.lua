@@ -6,9 +6,7 @@ function Job:new(opts)
         cmd = opts.cmd,
         args = opts.args,
         done = false,
-        on_stdin = opts.on_stdin or function() end,
-        on_stdout = opts.on_stdout or function() end,
-        on_stderr = opts.on_stderr or function() end,
+        on_data  = opts.on_data or function() end,
         stdin = vim.loop.new_pipe(false),
         stdout = vim.loop.new_pipe(false),
         stderr = vim.loop.new_pipe(false),
@@ -30,9 +28,17 @@ function Job:start()
         self.done = true
     end)
 
-    self.stdin:read_start(self.on_stdin)
-    self.stdout:read_start(self.on_stdout)
-    self.stderr:read_start(self.on_stderr)
+    self.stdout:read_start(function(err, data)
+        assert(not err, err)
+        if data then
+            self.on_data(data)
+        end
+    end)
+
+    self.stderr:read_start(function(err, data)
+        assert(not err, err)
+        assert(not data, data)
+    end)
 end
 
 function Job:stop()

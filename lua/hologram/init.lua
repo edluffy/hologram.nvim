@@ -102,7 +102,6 @@ function hologram.add_image(buf, source, row, col)
         col = 0,
     })
     img:transmit({hide = true})
-    img:get_size()
 
     global_images[#global_images+1] = img
 end
