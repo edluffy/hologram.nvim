@@ -70,7 +70,7 @@ function Image:transmit(opts)
         return
     end
 
-    if not opts.hide then image.move_cursor(self:pos()) end
+    local out = {}
     Job:new({
         cmd = cmd,
         args = args,
@@ -83,14 +83,18 @@ function Image:transmit(opts)
                 if #chunk > 0 then
                     keys.m = (#chunk < 4096) and 0 or 1
                     keys.q = 2 -- suppress responses
-                    image.async_write('\x1b_Ga='.. set_case('t') 
-                        .. ',' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\')
+                    out[#out+1] = '\x1b_Ga='.. set_case('t') 
+                        .. ',' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
                     keys = {}
                 end
             end
         end,
+        on_done = vim.schedule_wrap(function()
+            if not opts.hide then image.move_cursor(self:pos()) end
+            image.async_write(out)
+            if not opts.hide then image.restore_cursor() end
+        end),
     }):start()
-    if not opts.hide then image.restore_cursor() end
 end
 
 function Image:adjust(opts)
@@ -116,9 +120,7 @@ function Image:adjust(opts)
     }
 
     image.move_cursor(self:pos())
-
     image.async_write('\x1b_Ga=p,' .. image.keys_to_str(keys) .. '\x1b\\')
-
     image.restore_cursor()
 end
 
@@ -173,24 +175,6 @@ function Image:delete(opts)
     if opts.free then
         vim.api.nvim_buf_del_extmark(self:buf(), vim.g.hologram_extmark_ns, self:ext())
     end
-end
-
-function Image:run_jobs(jobs, on_done)
-    local timer = vim.loop.new_timer()
-    local cnt = 1
-
-    jobs[cnt]:start()
-    vim.loop.timer_start(timer, 0, 100, function()
-        if jobs[cnt].done then
-            cnt = cnt+1
-            if jobs[cnt] == nil then
-                vim.loop.close(timer)
-                if on_done then on_done() end
-            else
-                jobs[cnt]:start()
-            end
-        end
-    end)
 end
 
 function Image:identify()

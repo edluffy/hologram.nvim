@@ -5,8 +5,8 @@ function Job:new(opts)
     local obj = setmetatable({
         cmd = opts.cmd,
         args = opts.args,
-        done = false,
         on_data  = opts.on_data or function() end,
+        on_done  = opts.on_done or function() end,
         stdin = vim.loop.new_pipe(false),
         stdout = vim.loop.new_pipe(false),
         stderr = vim.loop.new_pipe(false),
@@ -25,7 +25,7 @@ function Job:start()
         self.safe_close(self.stdout)
         self.safe_close(self.stderr)
         self.safe_close(handle)
-        self.done = true
+        self.on_done()
     end)
 
     self.stdout:read_start(function(err, data)

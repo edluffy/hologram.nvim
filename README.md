@@ -144,8 +144,6 @@ Image:delete(id, {
     cell    = {col, row} -- del. images that intersect the specified cell
 })
 ```
-#### `Image:run_jobs(jobs, on_done)`
-Starts a list of jobs and runs them sequentially on the image. Can add optional callback for when jobs are finished.
 
 #### `Image:move(row, col)`
 Sets location by moving the extmark associated with the image.

@@ -124,7 +124,7 @@ function hologram.add_image(buf, source, row, col)
         row = row-1,
         col = 0,
     })
-    img:transmit({hide = true})
+    img:transmit()
 
     global_images[#global_images+1] = img
 end
@@ -157,10 +157,6 @@ function hologram.gen_images(buf, ft)
             end
         end
     end
-
-    vim.defer_fn(function()
-        hologram.update_images(0)
-    end, 300)
 end
 
 function hologram.create_autocmds()
