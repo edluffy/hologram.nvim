@@ -145,6 +145,9 @@ Image:delete(id, {
 })
 ```
 
+#### `Image:identify()`
+Run an ImageMagick job to find info about image, e.g: height, width
+
 #### `Image:move(row, col)`
 Sets location by moving the extmark associated with the image.
 
