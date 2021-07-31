@@ -91,7 +91,7 @@ function Image:transmit(opts)
         end,
         on_done = vim.schedule_wrap(function()
             if not opts.hide then image.move_cursor(self:pos()) end
-            image.async_write(out)
+            stdout:write(out)
             if not opts.hide then image.restore_cursor() end
         end),
     }):start()
@@ -120,7 +120,7 @@ function Image:adjust(opts)
     }
 
     image.move_cursor(self:pos())
-    image.async_write('\x1b_Ga=p,' .. image.keys_to_str(keys) .. '\x1b\\')
+    stdout:write('\x1b_Ga=p,' .. image.keys_to_str(keys) .. '\x1b\\')
     image.restore_cursor()
 end
 
@@ -169,7 +169,7 @@ function Image:delete(opts)
     end
 
     for _, keys in ipairs(keys_set) do
-        image.async_write('\x1b_Ga=d,' .. image.keys_to_str(keys) .. '\x1b\\')
+        stdout:write('\x1b_Ga=d,' .. image.keys_to_str(keys) .. '\x1b\\')
     end
 
     if opts.free then
@@ -235,13 +235,13 @@ function image.move_cursor(row, col)
         key2 = 'C' -- left
     end
 
-    image.async_write('\x1b[s') -- save position
-    image.async_write('\x1b[' .. math.abs(dr) .. key1)
-    image.async_write('\x1b[' .. math.abs(dc) .. key2)
+    stdout:write('\x1b[s') -- save position
+    stdout:write('\x1b[' .. math.abs(dr) .. key1)
+    stdout:write('\x1b[' .. math.abs(dc) .. key2)
 end
 
 function image.restore_cursor()
-    image.async_write('\x1b[u')
+    stdout:write('\x1b[u')
 end
 
 function image.keys_to_str(keys)
@@ -250,15 +250,6 @@ function image.keys_to_str(keys)
         str = str..k..'='..v..','
     end
     return str:sub(0, -2) -- chop trailing comma
-end
-
-function image.async_write(data)
-    local as
-    as = vim.loop.new_async(function()
-        stdout:write(data)
-        as:close()
-    end)
-    as:send()
 end
 
 return Image
