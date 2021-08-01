@@ -3,36 +3,31 @@ local Job = require('hologram.job')
 
 local hologram = {}
 
-local DEFAULT_OPTS = {
-    mappings = {},
-    protocol = 'kitty', -- hologram.detect()
-}
+config = require('hologram.config')
 
-local ws = {}
 local global_images = {}
 
 function hologram.setup(opts)
     opts = opts or {}
-    opts = vim.tbl_deep_extend("force", DEFAULT_OPTS, opts)
+    opts = vim.tbl_deep_extend("force", config.DEFAULT_OPTS, opts)
 
     vim.g.hologram_extmark_ns = vim.api.nvim_create_namespace('hologram_extmark')
-    vim.cmd("highlight default link HologramVirtualText LspDiagnosticsDefaultHint")
 
     hologram.create_autocmds()
     hologram.get_window_size()
 end
 
 function hologram.get_window_size()
-    ws.col = vim.api.nvim_get_option('columns')
-    ws.row = vim.api.nvim_get_option('lines')
+    config.window_info.cols = vim.api.nvim_get_option('columns')
+    config.window_info.rows = vim.api.nvim_get_option('lines')
     if vim.fn.executable('kitty') == 1 then
         Job:new({
             cmd = 'kitty',
             args = {'+kitten', 'icat', '--print-window-size'},
             on_data = function(data) 
                 data = {data:match("(.+)x(.+)")}
-                ws.xpixel = tonumber(data[1])
-                ws.ypixel  = tonumber(data[2])
+                config.window_info.xpixels = tonumber(data[1])
+                config.window_info.ypixels = tonumber(data[2])
             end,
         }):start()
     else
@@ -48,8 +43,8 @@ function hologram.check_region(img)
     end
 
     local cellsize = {
-        y = ws.ypixel/ws.row, 
-        x = ws.xpixel/ws.col,
+        y = config.window_info.ypixels/config.window_info.rows,
+        x = config.window_info.xpixels/config.window_info.cols,
     }
 
     local wintop = vim.fn.line('w0')
