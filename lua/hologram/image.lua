@@ -45,6 +45,7 @@ end
 function Image:transmit(opts)
     opts = opts or {}
     opts.medium = opts.medium or 'direct'
+    local set_case = opts.hide and string.lower or string.upper
 
     local keys = {
         i = self.id,
@@ -53,9 +54,9 @@ function Image:transmit(opts)
         v = opts.height or nil,
         s = opts.width or nil,
         p = 1,
+	a = set_case('t'),
     }
 
-    local set_case = opts.hide and string.lower or string.upper
 
     local cmd, args
     if vim.fn.executable('base64') == 1 then
@@ -75,16 +76,16 @@ function Image:transmit(opts)
         cmd = cmd,
         args = args,
         on_data = function(data) -- arrives in 8192 size chunks
+	    data = data:gsub('%s', ''):gsub('\n', '')
             local chunks = {}
-            chunks[1] = data:sub(0, 4096):gsub('%s+', '')
-            chunks[2] = data:sub(4097, -1):gsub('%s+', '')
+	    for i=1,#data, 4096 do
+		chunks[#chunks + 1] = data:sub(i, i + 4096 - 1):gsub('%s', '')
+	    end
 
-            for _, chunk in ipairs(chunks) do
+            for i, chunk in ipairs(chunks) do
                 if #chunk > 0 then
-                    keys.m = (#chunk < 4096) and 0 or 1
                     keys.q = 2 -- suppress responses
-                    out[#out+1] = '\x1b_Ga='.. set_case('t') 
-                        .. ',' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
+                    out[#out+1] = '\x1b_G' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
                     keys = {}
                 end
             end

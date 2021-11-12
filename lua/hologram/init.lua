@@ -3,7 +3,7 @@ local Job = require('hologram.job')
 
 local hologram = {}
 
-config = require('hologram.config')
+local config = require('hologram.config')
 
 local global_images = {}
 
@@ -38,7 +38,7 @@ end
 -- Returns {top, bot, left, right} area of image that can be displayed.
 -- nil if completely hidden
 function hologram.check_region(img)
-    if not (img.height and img.width) then
+    if not img or not (img.height and img.width) then
         return nil
     end
 
@@ -88,6 +88,10 @@ function hologram.update_images(buf)
 
         local img = hologram.get_image(buf, ext)
         local rg = hologram.check_region(img)
+
+	if not img then
+		return
+	end
 
         if rg then
             img:adjust({ 
