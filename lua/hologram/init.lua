@@ -24,7 +24,7 @@ function hologram.get_window_size()
         Job:new({
             cmd = 'kitty',
             args = {'+kitten', 'icat', '--print-window-size'},
-            on_data = function(data) 
+            on_data = function(data)
                 data = {data:match("(.+)x(.+)")}
                 config.window_info.xpixels = tonumber(data[1])
                 config.window_info.ypixels = tonumber(data[2])
@@ -53,7 +53,7 @@ function hologram.check_region(img)
     local winright = vim.fn.winwidth(0)
 
     local row, col = img:pos()
-    local top = math.max(0, (wintop-row)*cellsize.y)
+    local top = math.max(winleft, (wintop-row)*cellsize.y)
     local bot = math.min(img.height, (winbot-row+1)*cellsize.y)
     local right = winright*cellsize.x - col*cellsize.x
 
@@ -84,17 +84,17 @@ function hologram.update_images(buf)
     if buf == 0 then buf = vim.api.nvim_get_current_buf() end
 
     for _, ext_loc in ipairs(hologram.get_ext_loclist()) do
-        local ext, row, col = unpack(ext_loc)
+        local ext, _, _ = unpack(ext_loc)
 
         local img = hologram.get_image(buf, ext)
         local rg = hologram.check_region(img)
 
-	if not img then
-		return
-	end
+        if not img then
+            return
+        end
 
         if rg then
-            img:adjust({ 
+            img:adjust({
                 edge = {rg.left, rg.top},
                 crop = {rg.right, rg.bot},
             })
@@ -117,11 +117,11 @@ end
 function hologram.add_image(buf, source, row, col)
     if buf == 0 then buf = vim.api.nvim_get_current_buf() end
 
-    img = Image:new({
+    local img = Image:new({
         source = source,
         buf = buf,
         row = row-1,
-        col = 0,
+        col = col,
     })
     img:transmit()
 
@@ -133,7 +133,7 @@ function hologram.get_image(buf, ext)
     if buf == 0 then buf = vim.api.nvim_get_current_buf() end
 
     local img = nil
-    for _, i in ipairs(global_images) do 
+    for _, i in ipairs(global_images) do
         if i:buf() == buf and i:ext() == ext then
             img = i
         end
@@ -152,7 +152,7 @@ function hologram.gen_images(buf, ft)
             local image_link = line:match('!%[.-%]%(.-%)')
             if image_link then
                 local source = image_link:match('%((.+)%)')
-                hologram.add_image(buf, source, row, col)
+                hologram.add_image(buf, source, row, 0)
             end
         end
     end

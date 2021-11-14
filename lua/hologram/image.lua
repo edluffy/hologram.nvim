@@ -54,7 +54,7 @@ function Image:transmit(opts)
         v = opts.height or nil,
         s = opts.width or nil,
         p = 1,
-	a = set_case('t'),
+        a = set_case('t'),
     }
 
 
@@ -76,11 +76,11 @@ function Image:transmit(opts)
         cmd = cmd,
         args = args,
         on_data = function(data) -- arrives in 8192 size chunks
-	    data = data:gsub('%s', ''):gsub('\n', '')
+            data = data:gsub('%s', ''):gsub('\n', '')
             local chunks = {}
-	    for i=1,#data, 4096 do
-		chunks[#chunks + 1] = data:sub(i, i + 4096 - 1):gsub('%s', '')
-	    end
+            for i=1,#data, 4096 do
+                chunks[#chunks + 1] = data:sub(i, i + 4096 - 1):gsub('%s', '')
+            end
 
             for i, chunk in ipairs(chunks) do
                 if #chunk > 0 then
@@ -152,19 +152,19 @@ function Image:delete(opts)
     if opts.col then
         keys_set[#keys_set+1] = {
             d = set_case('x'),
-            x = opts.col, 
+            x = opts.col,
         }
     end
     if opts.row then
         keys_set[#keys_set+1] = {
             d = set_case('y'),
-            y = opts.row, 
+            y = opts.row,
         }
     end
     if opts.cell then
         keys_set[#keys_set+1] = {
             d = set_case('p'),
-            x = opts.cell[1], 
+            x = opts.cell[1],
             y = opts.cell[2],
         }
     end
@@ -184,7 +184,7 @@ function Image:identify()
         Job:new({
             cmd = 'identify',
             args = {'-format', '%hx%w', self.source},
-            on_data = function(data) 
+            on_data = function(data)
                 data = {data:match("(.+)x(.+)")}
                 self.height = tonumber(data[1])
                 self.width  = tonumber(data[2])
@@ -226,7 +226,7 @@ function image.move_cursor(row, col)
 
     if dr < 0 then
         key1 = 'A'  -- up
-    else 
+    else
         key1 = 'B'  -- down
     end
 
