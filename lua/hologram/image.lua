@@ -1,3 +1,10 @@
+--
+-- NOTE: This file contains the implementation for working with the kitty
+-- graphics protocol.
+--
+-- Reference: https://sw.kovidgoyal.net/kitty/graphics-protocol/
+--
+
 local fs = require('hologram.fs')
 local Job = require('hologram.job')
 local state = require('hologram.state')
