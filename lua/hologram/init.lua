@@ -4,8 +4,6 @@ local config = require('hologram.config')
 
 local hologram = {}
 
-local global_images = {}
-
 function hologram.setup(opts)
     opts = opts or {}
     opts = vim.tbl_deep_extend("force", config.DEFAULT_OPTS, opts)
@@ -106,7 +104,7 @@ end
 function hologram.clear_images(buf)
     if not buf or buf == 0 then buf = vim.api.nvim_get_current_buf() end
 
-    for _, image in ipairs(global_images) do
+    for _, image in ipairs(Image.instances) do
         if image.buffer == buf then
             image:delete({ free = true })
         end
@@ -116,23 +114,26 @@ end
 function hologram.add_image(buf, data, row, col)
     if buf == 0 then buf = vim.api.nvim_get_current_buf() end
 
+    local opts = {
+        buffer = buf,
+        row = row,
+        col = col,
+    }
+
     local img = nil
     if type(data) == 'string' then
-        img = Image:from_file(data, {
-            buffer = buf,
-            row = row,
-            col = col,
-        })
+        img = Image:from_file(data, opts)
+    elseif #(data[1][1]) == 3 then
+        img = Image:from_rgb(data, opts)
+    elseif #(data[1][1]) == 4 then
+        img = Image:from_rgba(data, opts)
     else
-        img = Image:from_rgb(data, {
-            buffer = buf,
-            row = row,
-            col = col,
-        })
+        assert(false, 'Unsupported image format')
     end
+
     img:transmit()
 
-    table.insert(global_images, img)
+    return img
 end
 
 -- Return image in 'buf' linked to 'ext'
@@ -140,7 +141,7 @@ function hologram.get_image(buf, ext)
     if buf == 0 then buf = vim.api.nvim_get_current_buf() end
 
     local img = nil
-    for _, i in ipairs(global_images) do
+    for _, i in ipairs(Image.instances) do
         if i.buffer == buf and i.extmark == ext then
             img = i
         end
@@ -166,7 +167,8 @@ function hologram.gen_images(buf, ft)
 end
 
 function hologram.create_autocmds()
-    vim.cmd("augroup Hologram") vim.cmd("autocmd!")
+    vim.cmd("augroup Hologram")
+    vim.cmd("autocmd!")
     vim.cmd("silent autocmd WinScrolled * :lua require('hologram').update_images(0)")
     vim.cmd("augroup END")
 end

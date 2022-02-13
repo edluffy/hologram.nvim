@@ -6,7 +6,9 @@ local utils = require('hologram.utils')
 local keys_to_string = utils.keys_to_string
 local bytes_to_string = utils.bytes_to_string
 
-local Image = {}
+local Image = {
+  instances = {},
+}
 Image.__index = Image
 
 local SOURCE = {
@@ -77,6 +79,8 @@ local function create(opts)
 
   instance:identify()
 
+  table.insert(Image.instances, instance)
+
   return instance
 end
 
@@ -134,14 +138,28 @@ function Image:transmit(opts)
 
       self:transmit_data(opts, params, content)
     end))
-  elseif self.source == SOURCE.RGB then
 
+  elseif self.source == SOURCE.RGB then
     local params = {
-      i = self.id,
       f = FORMAT.RGB,
-      v = self.height or nil,
-      s = self.width or nil,
+      v = self.height,
+      s = self.width,
       a = action,
+      i = self.id,
+      p = 1, -- placement id
+    }
+
+    vim.defer_fn(function ()
+      self:transmit_data(opts, params, bytes_to_string(self.data))
+    end, 0)
+
+  elseif self.source == SOURCE.RGBA then
+    local params = {
+      f = FORMAT.RGBA,
+      v = self.height,
+      s = self.width,
+      a = action,
+      i = self.id,
       p = 1, -- placement id
     }
 
