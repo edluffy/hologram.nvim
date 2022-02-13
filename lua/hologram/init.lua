@@ -1,9 +1,8 @@
 local Image = require('hologram.image')
 local Job = require('hologram.job')
+local config = require('hologram.config')
 
 local hologram = {}
-
-local config = require('hologram.config')
 
 local global_images = {}
 

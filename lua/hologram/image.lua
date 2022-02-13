@@ -2,24 +2,9 @@ local fs = require('hologram.fs')
 local Job = require('hologram.job')
 local base64 = require('hologram.base64')
 local terminal = require('hologram.terminal')
-
-local function keys_to_string(keys)
-  local entries = {}
-  for k, v in pairs(keys) do
-    table.insert(entries, k .. '=' .. v)
-  end
-  return table.concat(entries, ',')
-end
-
-local function bytes_to_string(data)
-  local bytes = vim.tbl_flatten(data)
-  local s = {}
-  for i = 1, #bytes do
-    s[i] = string.char(bytes[i])
-  end
-  return table.concat(s)
-end
-
+local utils = require('hologram.utils')
+local keys_to_string = utils.keys_to_string
+local bytes_to_string = utils.bytes_to_string
 
 local Image = {}
 Image.__index = Image
