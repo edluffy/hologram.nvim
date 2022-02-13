@@ -1,57 +1,106 @@
 local Job = require('hologram.job')
 local base64 = require('hologram.base64')
+local fs = require('hologram.fs')
+local terminal = require('hologram.terminal')
 
-local image = {}
+local function keys_to_string(keys)
+  local entries = {}
+  for k, v in pairs(keys) do
+    table.insert(entries, k .. '=' .. v)
+  end
+  return table.concat(entries, ',')
+end
 
-local stdout = vim.loop.new_pipe(false)
-stdout:open(1)
 
 local Image = {}
 Image.__index = Image
 
+local SOURCE = {
+  FILE = 1,
+  RGB  = 2,
+  RGBA = 3
+}
+
+local next_image_id = 1
+
+-- Instance data:
+-- image = {
+--   id: number,
+--   buffer: number,
+--   extmark: number,
+--   source: SOURCE,
+--   row: number,
+--   col: number,
+--   path?: string,
+--   data?: number[][]
+-- }
+
 -- source, row, col
-function Image:new(opts)
+local function create(opts)
     opts = opts or {}
 
     local cur_row, cur_col = unpack(vim.api.nvim_win_get_cursor(0))
-    opts.row = opts.row or cur_row
-    opts.col = opts.col or cur_col
+    local row = opts.row
+    local col = opts.col
+    if row == nil then row = cur_row end
+    if col == nil then col = cur_col end
 
-    local buf = vim.api.nvim_get_current_buf()
-    local ext = vim.api.nvim_buf_set_extmark(buf, vim.g.hologram_extmark_ns, opts.row, opts.col, {})
+    local buffer  = vim.api.nvim_get_current_buf()
+    local extmark = vim.api.nvim_buf_set_extmark(
+      buffer,
+      vim.g.hologram_extmark_ns,
+      opts.row,
+      opts.col,
+      {}
+    )
 
-    local obj = setmetatable({
-        id = buf*100 + ext,
-        source = opts.source
-    }, self)
+    local instance = setmetatable({
+        id = next_image_id,
+        buffer = buffer,
+        extmark = extmark,
+        source = opts.source,
+        row = row,
+        col = col,
+        path = opts.path,
+        data = opts.data,
+    }, Image)
+    next_image_id = next_image_id + 1
 
-    obj:identify()
+    instance:identify()
 
-    return obj
+    return instance
 end
 
---[[
-     All Kitty graphics commands are of the form:
+function Image:from_file(path, opts)
+  return create(vim.tbl_extend('keep', opts or {}, {
+    source = SOURCE.FILE,
+    path = path,
+  }))
+end
 
-   '<ESC>_G<control data>;<payload><ESC>\'
+function Image:from_rgb(data, opts)
+  return create(vim.tbl_extend('keep', opts or {}, {
+    source = SOURCE.RGB,
+    data = data,
+  }))
+end
 
-     <control keys> - a=T,f=100....
-          <payload> - base64 enc. file data
-              <ESC> - \x1b or \27 (*)
-
-     (*) Lua5.1/LuaJIT accepts escape seq. in dec or hex form (not octal).
-]]--
-
+function Image:from_rgba(data, opts)
+  return create(vim.tbl_extend('keep', opts or {}, {
+    source = SOURCE.RGBA,
+    data = data,
+  }))
+end
 
 function Image:transmit(opts)
     opts = opts or {}
     opts.medium = opts.medium or 'direct'
     local set_case = opts.hide and string.lower or string.upper
 
-    image.read_file(self.source, vim.schedule_wrap(function(content)
+    fs.read_file(self.path, vim.schedule_wrap(function(content)
         local data = base64.encode(content)
 
-        if not opts.hide then image.move_cursor(self:pos()) end
+        if not opts.hide then terminal.move_cursor(self:pos()) end
 
         -- Split into chunks of max 4096 length
         local chunks = {}
@@ -83,14 +132,14 @@ function Image:transmit(opts)
                 keys.m = 0
             end
 
-            local part = '\x1b_G' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
+            local part = '\x1b_G' .. keys_to_string(keys) .. ';' .. chunk .. '\x1b\\'
             table.insert(parts, part)
             keys = {}
         end
 
-        stdout:write(parts)
+        terminal.write(parts)
 
-        if not opts.hide then image.restore_cursor() end
+        if not opts.hide then terminal.restore_cursor() end
     end))
 end
 
@@ -116,9 +165,9 @@ function Image:adjust(opts)
         p = 1,
     }
 
-    image.move_cursor(self:pos())
-    stdout:write('\x1b_Ga=p,' .. image.keys_to_str(keys) .. '\x1b\\')
-    image.restore_cursor()
+    terminal.move_cursor(self:pos())
+    terminal.write('\x1b_Ga=p,' .. keys_to_string(keys) .. '\x1b\\')
+    terminal.restore_cursor()
 end
 
 function Image:delete(opts)
@@ -166,20 +215,24 @@ function Image:delete(opts)
     end
 
     for _, keys in ipairs(keys_set) do
-        stdout:write('\x1b_Ga=d,' .. image.keys_to_str(keys) .. '\x1b\\')
+        terminal.write('\x1b_Ga=d,' .. keys_to_string(keys) .. '\x1b\\')
     end
 
     if opts.free then
-        vim.api.nvim_buf_del_extmark(self:buf(), vim.g.hologram_extmark_ns, self:ext())
+        vim.api.nvim_buf_del_extmark(self.buffer, vim.g.hologram_extmark_ns, self.extmark)
     end
 end
 
 function Image:identify()
+    if self.source ~= SOURCE.FILE then
+        return
+    end
+
     -- Get image width + height
     if vim.fn.executable('identify') == 1 then
         Job:new({
             cmd = 'identify',
-            args = {'-format', '%hx%w', self.source},
+            args = {'-format', '%hx%w', self.path},
             on_data = function(data)
                 data = {data:match("(.+)x(.+)")}
                 self.height = tonumber(data[1])
@@ -193,76 +246,14 @@ function Image:identify()
 end
 
 function Image:move(row, col)
-    vim.api.nvim_buf_set_extmark(self:buf(), vim.g.hologram_extmark_ns, row, col, {
-        id = self:ext()
+    vim.api.nvim_buf_set_extmark(self.buffer, vim.g.hologram_extmark_ns, row, col, {
+        id = self.extmark
     })
 end
 
 function Image:pos()
-    return unpack(vim.api.nvim_buf_get_extmark_by_id(self:buf(), vim.g.hologram_extmark_ns, self:ext(), {}))
-end
-
-function Image:buf()
-    return math.floor(self.id/100)
-end
-
-function Image:ext()
-    return self.id % 100
-end
-
--- Works by calculating offset between cursor and desired position.
--- Bypasses need to translate between terminal cols/rows and nvim window cols/rows ;)
-function image.move_cursor(row, col)
-    local cur_row, cur_col = unpack(vim.api.nvim_win_get_cursor(0))
-    local dr = row - cur_row
-    local dc = col - cur_col
-
-    -- Find direction to move in
-    local key1, key2
-
-    if dr < 0 then
-        key1 = 'A'  -- up
-    else
-        key1 = 'B'  -- down
-    end
-
-    if dc < 0 then
-        key2 = 'D' -- right
-    else
-        key2 = 'C' -- left
-    end
-
-    stdout:write('\x1b[s') -- save position
-    stdout:write('\x1b[' .. math.abs(dr) .. key1)
-    stdout:write('\x1b[' .. math.abs(dc) .. key2)
-end
-
-function image.restore_cursor()
-    stdout:write('\x1b[u')
-end
-
-function image.keys_to_str(keys)
-    local str = ''
-    for k, v in pairs(keys) do
-        str = str..k..'='..v..','
-    end
-    return str:sub(0, -2) -- chop trailing comma
-end
-
-function image.read_file(path, callback)
-  vim.loop.fs_open(path, "r", 438, function(err, fd)
-    assert(not err, err)
-    vim.loop.fs_fstat(fd, function(err, stat)
-      assert(not err, err)
-      vim.loop.fs_read(fd, stat.size, 0, function(err, data)
-        assert(not err, err)
-        vim.loop.fs_close(fd, function(err)
-          assert(not err, err)
-          return callback(data)
-        end)
-      end)
-    end)
-  end)
+    return unpack(vim.api.nvim_buf_get_extmark_by_id(
+        self.buffer, vim.g.hologram_extmark_ns, self.extmark, {}))
 end
 
 return Image

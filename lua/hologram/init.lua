@@ -105,22 +105,21 @@ function hologram.update_images(buf)
 end
 
 function hologram.clear_images(buf)
-    if buf == 0 then buf = vim.api.nvim_get_current_buf() end
+    if not buf or buf == 0 then buf = vim.api.nvim_get_current_buf() end
 
-    for _, i in ipairs(global_images) do
-        if i:buf() == buf then
-            i:delete({free = true})
+    for _, image in ipairs(global_images) do
+        if image.buffer == buf then
+            image:delete({ free = true })
         end
     end
 end
 
-function hologram.add_image(buf, source, row, col)
+function hologram.add_image(buf, filepath, row, col)
     if buf == 0 then buf = vim.api.nvim_get_current_buf() end
 
-    local img = Image:new({
-        source = source,
-        buf = buf,
-        row = row-1,
+    local img = Image:from_file(filepath, {
+        buffer = buf,
+        row = row - 1,
         col = col,
     })
     img:transmit()
@@ -134,7 +133,7 @@ function hologram.get_image(buf, ext)
 
     local img = nil
     for _, i in ipairs(global_images) do
-        if i:buf() == buf and i:ext() == ext then
+        if i.buffer == buf and i.extmark == ext then
             img = i
         end
     end
