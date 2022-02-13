@@ -114,17 +114,26 @@ function hologram.clear_images(buf)
     end
 end
 
-function hologram.add_image(buf, filepath, row, col)
+function hologram.add_image(buf, data, row, col)
     if buf == 0 then buf = vim.api.nvim_get_current_buf() end
 
-    local img = Image:from_file(filepath, {
-        buffer = buf,
-        row = row - 1,
-        col = col,
-    })
+    local img = nil
+    if type(data) == 'string' then
+        img = Image:from_file(data, {
+            buffer = buf,
+            row = row,
+            col = col,
+        })
+    else
+        img = Image:from_rgb(data, {
+            buffer = buf,
+            row = row,
+            col = col,
+        })
+    end
     img:transmit()
 
-    global_images[#global_images+1] = img
+    table.insert(global_images, img)
 end
 
 -- Return image in 'buf' linked to 'ext'
