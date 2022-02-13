@@ -1,35 +1,29 @@
 local Image = require('hologram.image')
-local Job = require('hologram.job')
+local state = require('hologram.state')
 local config = require('hologram.config')
+local vim = _G.vim
 
 local hologram = {}
+local did_init = false
 
-function hologram.setup(opts)
-    opts = opts or {}
-    opts = vim.tbl_deep_extend("force", config.DEFAULT_OPTS, opts)
+local function initialize()
+    if did_init then
+        return
+    end
 
     vim.g.hologram_extmark_ns = vim.api.nvim_create_namespace('hologram_extmark')
 
     hologram.create_autocmds()
-    hologram.get_window_size()
+    state.update_dimensions()
+
+    did_init = true
 end
 
-function hologram.get_window_size()
-    config.window_info.cols = vim.api.nvim_get_option('columns')
-    config.window_info.rows = vim.api.nvim_get_option('lines')
-    if vim.fn.executable('kitty') == 1 then
-        Job:new({
-            cmd = 'kitty',
-            args = {'+kitten', 'icat', '--print-window-size'},
-            on_data = function(data)
-                data = {data:match("(.+)x(.+)")}
-                config.window_info.xpixels = tonumber(data[1])
-                config.window_info.ypixels = tonumber(data[2])
-            end,
-        }):start()
-    else
-        vim.api.nvim_err_writeln("Unable to find Kitty executable")
-    end
+function hologram.setup(opts)
+    opts = opts or {}
+    opts = vim.tbl_deep_extend('force', config.DEFAULT_OPTS, opts)
+
+    initialize()
 end
 
 -- Returns {top, bot, left, right} area of image that can be displayed.
@@ -39,10 +33,7 @@ function hologram.check_region(img)
         return nil
     end
 
-    local cellsize = {
-        y = config.window_info.ypixels/config.window_info.rows,
-        x = config.window_info.xpixels/config.window_info.cols,
-    }
+    local cell_pixels = state.dimensions.cell_pixels
 
     local wintop = vim.fn.line('w0')
     local winbot = vim.fn.line('w$')
@@ -50,15 +41,15 @@ function hologram.check_region(img)
     local winright = vim.fn.winwidth(0)
 
     local row, col = img:pos()
-    local top = math.max(winleft, (wintop-row)*cellsize.y)
-    local bot = math.min(img.height, (winbot-row+1)*cellsize.y)
-    local right = winright*cellsize.x - col*cellsize.x
+    local top = math.max(winleft, (wintop - row) * cell_pixels.height)
+    local bot = math.min(img.height, (winbot - row+1) * cell_pixels.height)
+    local right = winright * cell_pixels.width  -  col * cell_pixels.width
 
-    if top > bot-1 then
+    if top > bot - 1 then
         return nil
     end
 
-    return {top=top, bot=bot, left=0, right=right}
+    return { top = top, bot = bot, left = 0, right = right }
 end
 
 -- Get all extmarks in viewport (and within winwidth/2 of viewport bounds)
@@ -102,10 +93,12 @@ function hologram.update_images(buf)
 end
 
 function hologram.clear_images(buf)
-    if not buf or buf == 0 then buf = vim.api.nvim_get_current_buf() end
+    if buf == 0 then
+        buf = vim.api.nvim_get_current_buf()
+    end
 
     for _, image in ipairs(Image.instances) do
-        if image.buffer == buf then
+        if buf == nil or image.buffer == buf then
             image:delete({ free = true })
         end
     end

@@ -1,8 +1,9 @@
 local fs = require('hologram.fs')
 local Job = require('hologram.job')
+local state = require('hologram.state')
+local utils = require('hologram.utils')
 local base64 = require('hologram.base64')
 local terminal = require('hologram.terminal')
-local utils = require('hologram.utils')
 local keys_to_string = utils.keys_to_string
 local bytes_to_string = utils.bytes_to_string
 
@@ -107,7 +108,7 @@ end
 
 function Image:transmit(opts)
   opts = opts or {}
-  local action = opts.hide and 't' or 'T'
+  local action = 't'
 
   if self.source == SOURCE.FILE then
 
@@ -175,10 +176,6 @@ end
 function Image:transmit_data(opts, params, content)
   local data = base64.encode(content)
 
-  if not opts.hide then
-    terminal.move_cursor_to_text(0, self:pos())
-  end
-
   -- Split into chunks of max 4096 length
   local chunks = {}
   for i = 1, #data, 4096 do
@@ -205,10 +202,32 @@ function Image:transmit_data(opts, params, content)
     params = {} -- params only need to be present on the first part
   end
 
-  _G.parts = parts
   terminal.write(parts)
 
-  if not opts.hide then terminal.restore_cursor() end
+  if not opts.hide then
+    self:display(opts)
+  end
+end
+
+function Image:display(opts)
+  opts = opts or {}
+  local keys = {
+    a = 'p',
+    z = opts.z_index,
+
+    -- w = opts.crop[1],
+    -- h = opts.crop[2],
+    -- x = opts.edge[1],
+    -- y = opts.edge[2],
+
+    i = self.id,
+    p = 1,
+    q = 2, -- suppress responses
+  }
+
+  terminal.move_cursor_to_text(0, self:pos())
+  terminal.write(('\x1b_G' .. keys_to_string(keys) .. '\x1b\\'))
+  terminal.restore_cursor()
 end
 
 function Image:adjust(opts)
