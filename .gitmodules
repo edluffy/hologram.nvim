@@ -1,3 +1,0 @@
-[submodule "lua/hologram/cairo"]
-	path = lua/hologram/cairo
-	url = https://github.com/luapower/cairo

@@ -1,0 +1,7 @@
+cairo 1.12.16 from http://cairographics.org/releases/ (MPL/LGPL license)
+requires: pixman, freetype, zlib, libpng
+
+NOTE: modified cairo-compiler-private.h and changed #define cairo_private_no_warn
+because we use the private function _cairo_font_options_set_lcd_filter().
+
+
