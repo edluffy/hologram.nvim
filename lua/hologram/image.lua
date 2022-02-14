@@ -5,14 +5,18 @@
 -- Reference: https://sw.kovidgoyal.net/kitty/graphics-protocol/
 --
 
+local vim = _G.vim
 local fs = require('hologram.fs')
-local Job = require('hologram.job')
 local state = require('hologram.state')
 local utils = require('hologram.utils')
 local base64 = require('hologram.base64')
 local terminal = require('hologram.terminal')
+local Rectangle = require('hologram.rectangle')
 local keys_to_string = utils.keys_to_string
 local bytes_to_string = utils.bytes_to_string
+local winpos_to_screenpos = utils.winpos_to_screenpos
+
+_G.log = {}
 
 local Image = {
   instances = {},
@@ -43,6 +47,7 @@ local next_image_id = 1
 -- Instance data:
 -- image = {
 --   id: number,
+--   window?: number,
 --   buffer: number,
 --   extmark: number,
 --   source: SOURCE,
@@ -54,6 +59,8 @@ local next_image_id = 1
 --   data?: number[][]
 -- }
 
+-- Constructors
+
 -- source, row, col
 local function create(opts)
   opts = opts or {}
@@ -64,7 +71,8 @@ local function create(opts)
   if row == nil then row = cur_row end
   if col == nil then col = cur_col end
 
-  local buffer  = vim.api.nvim_get_current_buf()
+  local window  = opts.window or nil
+  local buffer  = opts.buffer or vim.api.nvim_get_current_buf()
   local extmark = vim.api.nvim_buf_set_extmark(
     buffer,
     vim.g.hologram_extmark_ns,
@@ -75,6 +83,7 @@ local function create(opts)
 
   local instance = setmetatable({
     id = next_image_id,
+    window = window,
     buffer = buffer,
     extmark = extmark,
     source = opts.source,
@@ -112,6 +121,9 @@ function Image:from_rgba(data, opts)
     data = data,
   }))
 end
+
+
+-- Instance methods
 
 function Image:transmit(opts)
   opts = opts or {}
@@ -218,50 +230,56 @@ end
 
 function Image:display(opts)
   opts = opts or {}
+
+  local screen = opts.screen or state.dimensions.screen
+
+  local position = self:pos()
+  local row = position[1]
+  local col = position[2]
+
+  local screen_position = winpos_to_screenpos(0, row, col)
+
+  local cell_pixels   = state.dimensions.cell_pixels
+
+  local position_x = (screen_position.col - 1) * cell_pixels.width
+  local position_y = (screen_position.row - 1) * cell_pixels.height
+
+  local region = Rectangle.new(position_x, position_y, self.width, self.height)
+  local visible_region = region:crop_to(screen)
+  local offset = region:offset_to(visible_region)
+
+  table.insert(_G.log, {
+    region = region:to_cells(state.dimensions.cell_pixels),
+    visible_region = visible_region:to_cells(state.dimensions.cell_pixels),
+    screen = screen:to_cells(state.dimensions.cell_pixels),
+  })
+
+  if visible_region.width == 0 or visible_region.height == 0 then
+    self:delete({ free = false })
+    return
+  end
+
   local keys = {
     a = 'p',
     z = opts.z_index,
 
-    -- w = opts.crop[1],
-    -- h = opts.crop[2],
-    -- x = opts.edge[1],
-    -- y = opts.edge[2],
+    w = visible_region.width,
+    h = visible_region.height,
+    x = offset.x,
+    y = offset.y,
 
     i = self.id,
     p = 1,
     q = 2, -- suppress responses
   }
 
-  terminal.move_cursor_to_text(0, self:pos())
+  terminal.move_cursor_to_text(0, row, col)
   terminal.write(('\x1b_G' .. keys_to_string(keys) .. '\x1b\\'))
   terminal.restore_cursor()
 end
 
 function Image:adjust(opts)
-  opts = opts or {}
-  opts.crop = opts.crop or {}
-  opts.area = opts.area or {}
-  opts.edge = opts.edge or {}
-  opts.offset = opts.offset or {}
-
-  local keys = {
-    i = self.id,
-    z = opts.z_index,
-    w = opts.crop[1],
-    h = opts.crop[2],
-    c = opts.area[1],
-    r = opts.area[2],
-    x = opts.edge[1],
-    y = opts.edge[2],
-    X = opts.offset[1],
-    Y = opts.offset[2],
-    q = 2, -- suppress responses
-    p = 1,
-  }
-
-  terminal.move_cursor(self:pos())
-  terminal.write('\x1b_Ga=p,' .. keys_to_string(keys) .. '\x1b\\')
-  terminal.restore_cursor()
+  self:display(opts)
 end
 
 function Image:delete(opts)
@@ -326,20 +344,18 @@ function Image:identify()
   end
 
   -- Get image width + height
-  if vim.fn.executable('identify') == 1 then
-    Job:new({
-      cmd = 'identify',
-      args = {'-format', '%hx%w', self.path},
-      on_data = function(data)
-        data = {data:match("(.+)x(.+)")}
-        self.height = tonumber(data[1])
-        self.width  = tonumber(data[2])
-      end,
-    }):start()
-  else
-    vim.api.nvim_err_writeln("Unable to run command 'identify'."..
-      " Make sure ImageMagick is installed.")
+  if vim.fn.executable('identify') ~= 1 then
+    vim.api.nvim_err_writeln(
+      'Unable to run command "identify".' ..
+      ' Make sure ImageMagick is installed.')
+    return
   end
+
+  local output = vim.fn.system('identify -format %hx%w ' .. self.path)
+  local data = {output:match("(.+)x(.+)")}
+  self.height = tonumber(data[1])
+  self.width  = tonumber(data[2])
+  return
 end
 
 function Image:move(row, col)
@@ -349,8 +365,8 @@ function Image:move(row, col)
 end
 
 function Image:pos()
-  return unpack(vim.api.nvim_buf_get_extmark_by_id(
-    self.buffer, vim.g.hologram_extmark_ns, self.extmark, {}))
+  return vim.api.nvim_buf_get_extmark_by_id(
+    self.buffer, vim.g.hologram_extmark_ns, self.extmark, {})
 end
 
 return Image

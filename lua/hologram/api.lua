@@ -1,5 +1,6 @@
 local Image = require('hologram.image')
 local state = require('hologram.state')
+local utils = require('hologram.utils')
 local vim = _G.vim
 
 local hologram = {}
@@ -18,7 +19,7 @@ function hologram.check_region(img)
     local winleft = 0
     local winright = vim.fn.winwidth(0)
 
-    local row, col = img:pos()
+    local row, col = unpack(img:pos())
     local top = math.max(winleft, (wintop - row) * cell_pixels.height)
     local bot = math.min(img.height, (winbot - row+1) * cell_pixels.height)
     local right = winright * cell_pixels.width  -  col * cell_pixels.width
@@ -53,20 +54,14 @@ function hologram.update_images(buf)
         local ext, _, _ = unpack(ext_loc)
 
         local img = hologram.get_image(buf, ext)
-        local rg = hologram.check_region(img)
-
-        if not img then
-            return
+        local crop_area = state.dimensions.screen
+        if img.window ~= nil then
+            crop_area =
+                utils.get_window_rectangle(img.window)
+                    :to_pixels(state.dimensions.cell_pixels)
         end
 
-        if rg then
-            img:adjust({
-                edge = {rg.left, rg.top},
-                crop = {rg.right, rg.bot},
-            })
-        else
-            img:delete({free = false})
-        end
+        img:adjust({ screen = crop_area })
     end
 end
 
@@ -86,6 +81,7 @@ function hologram.add_image(buf, data, row, col)
     if buf == 0 then buf = vim.api.nvim_get_current_buf() end
 
     local opts = {
+        window = vim.fn.bufwinid(buf),
         buffer = buf,
         row = row,
         col = col,

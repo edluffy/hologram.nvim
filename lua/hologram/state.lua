@@ -1,7 +1,9 @@
 local Job = require('hologram.job')
+local Rectangle = require('hologram.rectangle')
 
 local state = {
   dimensions = {
+    screen = Rectangle.new(0, 0, 0, 0),
     screen_cells = {
       width = 0,
       height = 0,
@@ -41,8 +43,27 @@ function state.update_dimensions()
         width  = state.dimensions.screen_pixels.width  / state.dimensions.screen_cells.width,
         height = state.dimensions.screen_pixels.height / state.dimensions.screen_cells.height,
       }
+
+      state.dimensions.screen = Rectangle.new(
+        0, 0, state.dimensions.screen_pixels.width, state.dimensions.screen_pixels.height)
     end,
   }):start()
+end
+
+function state.pixels_to_cells(point)
+  local cell_pixels = state.dimensions.cell_pixels
+  return {
+    x = point.x / cell_pixels.width,
+    y = point.y / cell_pixels.height,
+  }
+end
+
+function state.cells_to_pixels(point)
+  local cell_pixels = state.dimensions.cell_pixels
+  return {
+    x = point.x * cell_pixels.width,
+    y = point.y * cell_pixels.height,
+  }
 end
 
 return state

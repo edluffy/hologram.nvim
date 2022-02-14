@@ -1,3 +1,6 @@
+local utils = require('hologram.utils')
+local winpos_to_screenpos = utils.winpos_to_screenpos
+
 local stdout = vim.loop.new_pipe(false)
 stdout:open(1)
 
@@ -36,8 +39,7 @@ function terminal.move_cursor(row, col)
 end
 
 function terminal.move_cursor_to_text(window, row, col)
-  local lnum = row + 1
-  local position = vim.fn.screenpos(window, lnum, col)
+  local position = winpos_to_screenpos(window, row, col)
 
   terminal.write('\x1b[s') -- save position
   terminal.write('\x1b[' .. position.row .. ':' .. position.col .. 'H')
