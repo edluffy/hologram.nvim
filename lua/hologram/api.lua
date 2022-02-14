@@ -90,10 +90,16 @@ function hologram.add_image(buf, data, row, col)
     local img = nil
     if type(data) == 'string' then
         img = Image:from_file(data, opts)
-    elseif #(data[1][1]) == 3 then
-        img = Image:from_rgb(data, opts)
-    elseif #(data[1][1]) == 4 then
-        img = Image:from_rgba(data, opts)
+    elseif type(data) == 'table' then
+        if #(data[1][1]) == 3 then
+            img = Image:from_rgb(data, opts)
+        elseif #(data[1][1]) == 4 then
+            img = Image:from_rgba(data, opts)
+        else
+            assert(false, 'Unsupported image size')
+        end
+    elseif type(data) == 'cdata' then
+        img = Image:from_surface(data, opts)
     else
         assert(false, 'Unsupported image format')
     end

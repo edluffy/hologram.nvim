@@ -6,6 +6,7 @@
 --
 
 local vim = _G.vim
+local ffi = require('ffi')
 local fs = require('hologram.fs')
 local state = require('hologram.state')
 local utils = require('hologram.utils')
@@ -26,7 +27,8 @@ Image.__index = Image
 local SOURCE = {
   FILE = 1,
   RGB  = 2,
-  RGBA = 3
+  RGBA = 3,
+  CAIRO = 4,
 }
 
 local TRANSMISSION = {
@@ -122,6 +124,17 @@ function Image:from_rgba(data, opts)
   }))
 end
 
+function Image:from_surface(data, opts)
+  assert(
+    data:bitmap_format() == 'bgra8',
+    'Unsupported format: ' .. data:bitmap_format()
+  )
+  return create(vim.tbl_extend('keep', opts or {}, {
+    source = SOURCE.CAIRO,
+    data = data,
+  }))
+end
+
 
 -- Instance methods
 
@@ -185,6 +198,23 @@ function Image:transmit(opts)
 
     vim.defer_fn(function ()
       self:transmit_data(opts, params, bytes_to_string(self.data))
+    end, 0)
+
+  elseif self.source == SOURCE.CAIRO then
+    local params = {
+      f = FORMAT.RGBA,
+      v = self.height,
+      s = self.width,
+      a = action,
+      i = self.id,
+      p = 1, -- placement id
+    }
+
+    local bytes, length = utils.cairo_surface_to_bytes(self.data)
+
+    vim.defer_fn(function ()
+      self:transmit_data(opts, params,
+        bytes_to_string(bytes, length, 0))
     end, 0)
 
   else
@@ -336,26 +366,34 @@ function Image:delete(opts)
 end
 
 function Image:identify()
-  if self.source ~= SOURCE.FILE then
+  if self.source == SOURCE.RGB or self.source == SOURCE.RGBA then
     local lines = self.data
     self.height = #(lines)
     self.width  = #(lines[1])
     return
   end
 
-  -- Get image width + height
-  if vim.fn.executable('identify') ~= 1 then
-    vim.api.nvim_err_writeln(
-      'Unable to run command "identify".' ..
-      ' Make sure ImageMagick is installed.')
+  if self.source == SOURCE.CAIRO then
+    self.width  = self.data:width()
+    self.height = self.data:height()
     return
   end
 
-  local output = vim.fn.system('identify -format %hx%w ' .. self.path)
-  local data = {output:match("(.+)x(.+)")}
-  self.height = tonumber(data[1])
-  self.width  = tonumber(data[2])
-  return
+  if self.source == SOURCE.FILE then
+    -- Get image width + height
+    if vim.fn.executable('identify') ~= 1 then
+      vim.api.nvim_err_writeln(
+        'Unable to run command "identify".' ..
+        ' Make sure ImageMagick is installed.')
+      return
+    end
+
+    local output = vim.fn.system('identify -format %hx%w ' .. self.path)
+    local data = {output:match("(.+)x(.+)")}
+    self.height = tonumber(data[1])
+    self.width  = tonumber(data[2])
+    return
+  end
 end
 
 function Image:move(row, col)
