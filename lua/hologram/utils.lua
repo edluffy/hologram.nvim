@@ -70,13 +70,26 @@ end
 function m.winpos_to_screenpos(window, row, col)
   local lnum = row + 1
   local position = vim.fn.screenpos(window, lnum, col)
-  return position
+
+  if position.col ~= 0 then
+    return position
+  end
+
+  local info = vim.fn.getwininfo(window)[1]
+  local result = {
+    row = row + info.winrow - (info.topline - 1),
+    col = col + info.wincol + info.textoff,
+  }
+
+  return result
 end
 
 function m.get_window_rectangle(window_id)
-  local y, x = unpack(vim.fn.win_screenpos(window_id))
-  local width  = vim.fn.winwidth(window_id)
-  local height = vim.fn.winheight(window_id)
+  local row, col = unpack(vim.fn.win_screenpos(window_id))
+  local x = col - 1
+  local y = row - 1
+  local width  = vim.fn.winwidth(window_id)  + 1
+  local height = vim.fn.winheight(window_id) + 1
 
   -- separator
   width = width - 1

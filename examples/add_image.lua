@@ -28,42 +28,42 @@ h.add_image(0, surface, 25, 0)
 
 
 
- -- h.add_image(0, data, 17, 0)
- h.add_image(0, '/home/romgrk/img/lena.png', 32, 0)
+-- h.add_image(0, '/home/romgrk/img/lena.png', 32, 0)
 
 
 -- Send a custom created bitmap
 
- -- local red_100 = {255, 0, 0, 255}
- -- local red_50  = {255, 0, 0, 100}
- --
- -- local function fill(length, value)
- --   local array = {}
- --   for i = 1, length do
- --     table.insert(array, value)
- --   end
- --   return array
- -- end
- --
- -- local function concat(tables)
- --   local result = {}
- --   for _, t in ipairs(tables) do
- --     for _, value in ipairs(t) do
- --       table.insert(result, value)
- --     end
- --   end
- --   return result
- -- end
- --
- -- local size = 50
- -- local width = 1
- -- local data = concat({
- --   { fill(size, red_100) },
- --   fill(size, concat({ { red_100 }, fill(size - width * 2, red_50), { red_100 } })),
- --   { fill(size, red_100) },
- -- })
- --
- 
+-- local red_100 = {255, 0, 0, 255}
+-- local red_50  = {255, 0, 0, 100}
+--
+-- local function fill(length, value)
+--   local array = {}
+--   for i = 1, length do
+--     table.insert(array, value)
+--   end
+--   return array
+-- end
+--
+-- local function concat(tables)
+--   local result = {}
+--   for _, t in ipairs(tables) do
+--     for _, value in ipairs(t) do
+--       table.insert(result, value)
+--     end
+--   end
+--   return result
+-- end
+--
+-- local size = 50
+-- local width = 1
+-- local data = concat({
+--   { fill(size, red_100) },
+--   fill(size, concat({ { red_100 }, fill(size - width * 2, red_50), { red_100 } })),
+--   { fill(size, red_100) },
+-- })
+--
+-- h.add_image(0, data, 17, 0)
+
 
 
 

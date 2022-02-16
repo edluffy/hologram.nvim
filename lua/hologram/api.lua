@@ -1,35 +1,7 @@
 local Image = require('hologram.image')
-local state = require('hologram.state')
-local utils = require('hologram.utils')
 local vim = _G.vim
 
 local hologram = {}
-
--- Returns {top, bot, left, right} area of image that can be displayed.
--- nil if completely hidden
-function hologram.check_region(img)
-    if not img or not (img.height and img.width) then
-        return nil
-    end
-
-    local cell_pixels = state.dimensions.cell_pixels
-
-    local wintop = vim.fn.line('w0')
-    local winbot = vim.fn.line('w$')
-    local winleft = 0
-    local winright = vim.fn.winwidth(0)
-
-    local row, col = unpack(img:pos())
-    local top = math.max(winleft, (wintop - row) * cell_pixels.height)
-    local bot = math.min(img.height, (winbot - row+1) * cell_pixels.height)
-    local right = winright * cell_pixels.width  -  col * cell_pixels.width
-
-    if top > bot - 1 then
-        return nil
-    end
-
-    return { top = top, bot = bot, left = 0, right = right }
-end
 
 -- Get all extmarks in viewport (and within winwidth/2 of viewport bounds)
 function hologram.get_ext_loclist(buf)
@@ -53,15 +25,8 @@ function hologram.update_images(buf)
     for _, ext_loc in ipairs(hologram.get_ext_loclist(0)) do
         local ext, _, _ = unpack(ext_loc)
 
-        local img = hologram.get_image(buf, ext)
-        local crop_area = state.dimensions.screen
-        if img.window ~= nil then
-            crop_area =
-                utils.get_window_rectangle(img.window)
-                    :to_pixels(state.dimensions.cell_pixels)
-        end
-
-        img:adjust({ screen = crop_area })
+        local image = hologram.get_image(buf, ext)
+        image:adjust()
     end
 end
 

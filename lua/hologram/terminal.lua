@@ -40,9 +40,16 @@ end
 
 function terminal.move_cursor_to_text(window, row, col)
   local position = winpos_to_screenpos(window, row, col)
+  terminal.move_cursor_absolute(position.row, position.col)
+end
+
+function terminal.move_cursor_absolute(x, y)
+  if y <= -1 or x <= 0 then
+    assert(false, 'Negative position')
+  end
 
   terminal.write('\x1b[s') -- save position
-  terminal.write('\x1b[' .. position.row .. ':' .. position.col .. 'H')
+  terminal.write('\x1b[' .. (y + 1) .. ':' .. (x + 1) .. 'H')
 end
 
 function terminal.restore_cursor()

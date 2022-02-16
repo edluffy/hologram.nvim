@@ -17,8 +17,6 @@ local keys_to_string = utils.keys_to_string
 local bytes_to_string = utils.bytes_to_string
 local winpos_to_screenpos = utils.winpos_to_screenpos
 
-_G.log = {}
-
 local Image = {
   instances = {},
 }
@@ -261,13 +259,18 @@ end
 function Image:display(opts)
   opts = opts or {}
 
-  local screen = opts.screen or state.dimensions.screen
+  local crop_area = opts.screen or state.dimensions.screen
+  if self.window ~= nil then
+    crop_area =
+      utils.get_window_rectangle(self.window)
+        :to_pixels(state.dimensions.cell_pixels)
+  end
 
   local position = self:pos()
   local row = position[1]
   local col = position[2]
 
-  local screen_position = winpos_to_screenpos(0, row, col)
+  local screen_position = winpos_to_screenpos(self.window, row, col)
 
   local cell_pixels   = state.dimensions.cell_pixels
 
@@ -275,14 +278,9 @@ function Image:display(opts)
   local position_y = (screen_position.row - 1) * cell_pixels.height
 
   local region = Rectangle.new(position_x, position_y, self.width, self.height)
-  local visible_region = region:crop_to(screen)
+  local visible_region = region:crop_to(crop_area)
+  local visible_region_cells = visible_region:to_cells(state.dimensions.cell_pixels)
   local offset = region:offset_to(visible_region)
-
-  table.insert(_G.log, {
-    region = region:to_cells(state.dimensions.cell_pixels),
-    visible_region = visible_region:to_cells(state.dimensions.cell_pixels),
-    screen = screen:to_cells(state.dimensions.cell_pixels),
-  })
 
   if visible_region.width == 0 or visible_region.height == 0 then
     self:delete({ free = false })
@@ -303,7 +301,10 @@ function Image:display(opts)
     q = 2, -- suppress responses
   }
 
-  terminal.move_cursor_to_text(0, row, col)
+  terminal.move_cursor_absolute(
+    visible_region_cells.x,
+    visible_region_cells.y
+  )
   terminal.write(('\x1b_G' .. keys_to_string(keys) .. '\x1b\\'))
   terminal.restore_cursor()
 end

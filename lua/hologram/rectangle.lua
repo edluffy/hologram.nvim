@@ -33,7 +33,9 @@ function Rectangle:crop_to(other)
   local result = Rectangle.from(self)
 
   if other.x > result.x then
+    local dx = other.x - result.x
     result.x = other.x
+    result.width = math.max(0, result.width - dx)
   end
   if other:endX() < self:endX() then
     result.width =
@@ -44,7 +46,9 @@ function Rectangle:crop_to(other)
   end
 
   if other.y > result.y then
+    local dy = other.y - result.y
     result.y = other.y
+    result.height = math.max(0, result.height - dy)
   end
   if other:endY() < self:endY() then
     result.height =
