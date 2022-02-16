@@ -44,7 +44,7 @@ function terminal.move_cursor_to_text(window, row, col)
 end
 
 function terminal.move_cursor_absolute(x, y)
-  if y <= -1 or x <= 0 then
+  if y < 0 or x < 0 then
     assert(false, 'Negative position')
   end
 

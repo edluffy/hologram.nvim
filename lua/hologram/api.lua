@@ -42,33 +42,23 @@ function hologram.clear_images(buf)
     end
 end
 
-function hologram.add_image(buf, data, row, col)
+-- @param data
+-- @param opts
+function hologram.add_image(data, opts)
+    local row = opts.row
+    local col = opts.col
+    local buf = opts.buf
     if buf == 0 then buf = vim.api.nvim_get_current_buf() end
+    local window = buf and vim.fn.bufwinid(buf) or nil
 
-    local opts = {
-        window = vim.fn.bufwinid(buf),
+    local image_opts = {
+        window = window,
         buffer = buf,
         row = row,
         col = col,
     }
 
-    local img = nil
-    if type(data) == 'string' then
-        img = Image:from_file(data, opts)
-    elseif type(data) == 'table' then
-        if #(data[1][1]) == 3 then
-            img = Image:from_rgb(data, opts)
-        elseif #(data[1][1]) == 4 then
-            img = Image:from_rgba(data, opts)
-        else
-            assert(false, 'Unsupported image size')
-        end
-    elseif type(data) == 'cdata' then
-        img = Image:from_surface(data, opts)
-    else
-        assert(false, 'Unsupported image format')
-    end
-
+    local img = Image.new(data, image_opts)
     img:transmit()
 
     return img

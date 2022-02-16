@@ -67,6 +67,7 @@ function m.cairo_surface_to_bytes(surface)
   return bytes, length * 4
 end
 
+-- 1-indexed
 function m.winpos_to_screenpos(window, row, col)
   local lnum = row + 1
   local position = vim.fn.screenpos(window, lnum, col)

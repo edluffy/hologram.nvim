@@ -21,14 +21,14 @@ cr:stroke_preserve()
 cr:restore()
 surface:flush()
 
-h.add_image(0, surface, 25, 0)
+h.add_image(surface, { buf = 0, row = 0, col = 0 })
 
 
 
 
 
 
--- h.add_image(0, '/home/romgrk/img/lena.png', 32, 0)
+-- h.add_image('/home/romgrk/img/lena.png', { buf = 0, row = 32, col = 0 })
 
 
 -- Send a custom created bitmap
@@ -62,7 +62,7 @@ h.add_image(0, surface, 25, 0)
 --   { fill(size, red_100) },
 -- })
 --
--- h.add_image(0, data, 17, 0)
+-- h.add_image(data, { buf = 0, col = 17, 0 })
 
 
 

@@ -17,6 +17,8 @@ local keys_to_string = utils.keys_to_string
 local bytes_to_string = utils.bytes_to_string
 local winpos_to_screenpos = utils.winpos_to_screenpos
 
+_G.log = {}
+
 local Image = {
   instances = {},
 }
@@ -101,28 +103,48 @@ local function create(opts)
   return instance
 end
 
-function Image:from_file(path, opts)
+function Image.new(data, opts)
+  local image = nil
+  if type(data) == 'string' then
+    image = Image.from_file(data, opts)
+  elseif type(data) == 'table' then
+    if #(data[1][1]) == 3 then
+      image = Image.from_rgb(data, opts)
+    elseif #(data[1][1]) == 4 then
+      image = Image.from_rgba(data, opts)
+    else
+      assert(false, 'Unsupported image size')
+    end
+  elseif type(data) == 'cdata' then
+    image = Image.from_surface(data, opts)
+  else
+    assert(false, 'Unsupported image format')
+  end
+  return image
+end
+
+function Image.from_file(path, opts)
   return create(vim.tbl_extend('keep', opts or {}, {
     source = SOURCE.FILE,
     path = path,
   }))
 end
 
-function Image:from_rgb(data, opts)
+function Image.from_rgb(data, opts)
   return create(vim.tbl_extend('keep', opts or {}, {
     source = SOURCE.RGB,
     data = data,
   }))
 end
 
-function Image:from_rgba(data, opts)
+function Image.from_rgba(data, opts)
   return create(vim.tbl_extend('keep', opts or {}, {
     source = SOURCE.RGBA,
     data = data,
   }))
 end
 
-function Image:from_surface(data, opts)
+function Image.from_surface(data, opts)
   assert(
     data:bitmap_format() == 'bgra8',
     'Unsupported format: ' .. data:bitmap_format()
@@ -270,7 +292,12 @@ function Image:display(opts)
   local row = position[1]
   local col = position[2]
 
-  local screen_position = winpos_to_screenpos(self.window, row, col)
+  local screen_position
+  if self.window then
+    screen_position = winpos_to_screenpos(self.window, row, col)
+  else
+    screen_position = { row = row + 1, col = col + 1 }
+  end
 
   local cell_pixels   = state.dimensions.cell_pixels
 
@@ -286,6 +313,11 @@ function Image:display(opts)
     self:delete({ free = false })
     return
   end
+
+  table.insert(_G.log, {
+    screen_position = screen_position,
+    visible_region_cells = visible_region_cells,
+  })
 
   local keys = {
     a = 'p',
