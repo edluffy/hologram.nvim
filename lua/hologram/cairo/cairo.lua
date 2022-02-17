@@ -1470,6 +1470,21 @@ function cr:rel_quad_curve_to(x1, y1, x2, y2)
 	self:quad_curve_to(x0+x1, y0+y1, x0+x2, y0+y2)
 end
 
+function cr:rounded_rectangle(x, y, width, height, corner_radius)
+	local aspect = 1.0 -- aspect ratio
+
+	local radius = corner_radius / aspect
+	local degrees = math.pi / 180.0
+
+	self:new_sub_path()
+	self:arc(x + width - radius, y + radius, radius, -90 * degrees, 0 * degrees)
+	self:arc(x + width - radius, y + height - radius, radius, 0 * degrees, 90 * degrees)
+	self:arc(x + radius, y + height - radius, radius, 90 * degrees, 180 * degrees)
+	self:arc(x + radius, y + radius, radius, 180 * degrees, 270 * degrees)
+	self:close_path()
+end
+
+
 --additions to matrices
 
 function mt:transform(mt)

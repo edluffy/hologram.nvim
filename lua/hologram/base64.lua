@@ -40,39 +40,63 @@ local DEFAULT_DECODER = base64.makedecoder()
 
 local char, concat = string.char, table.concat
 
-function base64.encode(str, encoder, usecaching)
-  encoder = encoder or DEFAULT_ENCODER
-  local t, k, n = {}, 1, #str
+function base64.encode(input)
+  local encoder = DEFAULT_ENCODER
+
+  local t = {}
+  local k = 1
+  local n = #input
   local lastn = n % 3
-  local cache = {}
+
   for i = 1, n-lastn, 3 do
-    local a, b, c = str:byte(i, i+2)
-    local v = a*0x10000 + b*0x100 + c
-    local s
-    if usecaching then
-      s = cache[v]
-      if not s then
-        s = char(encoder[extract(v,18,6)], encoder[extract(v,12,6)], encoder[extract(v,6,6)], encoder[extract(v,0,6)])
-        cache[v] = s
-      end
-    else
-      s = char(encoder[extract(v,18,6)], encoder[extract(v,12,6)], encoder[extract(v,6,6)], encoder[extract(v,0,6)])
-    end
+    local a, b, c = input:byte(i, i + 2)
+    local v = a * 0x10000 + b * 0x100 + c
+    local s = char(encoder[extract(v,18,6)], encoder[extract(v,12,6)], encoder[extract(v,6,6)], encoder[extract(v,0,6)])
     t[k] = s
     k = k + 1
   end
+
   if lastn == 2 then
-    local a, b = str:byte(n-1, n)
+    local a, b = input:byte(n-1, n)
     local v = a*0x10000 + b*0x100
     t[k] = char(encoder[extract(v,18,6)], encoder[extract(v,12,6)], encoder[extract(v,6,6)], encoder[64])
   elseif lastn == 1 then
-    local v = str:byte(n)*0x10000
+    local v = input:byte(n) * 0x10000
     t[k] = char(encoder[extract(v,18,6)], encoder[extract(v,12,6)], encoder[64], encoder[64])
   end
+
   return concat(t)
 end
 
-function base64.decode(b64, decoder, usecaching)
+function base64.encode_bytes(bytes, length)
+  local encoder = DEFAULT_ENCODER
+
+  local t = {}
+  local k = 1
+  local n = length or #bytes
+  local lastn = n % 3
+
+  for i = 1, n-lastn, 3 do
+    local a, b, c = bytes[i], bytes[i + 1], bytes[i + 2]
+    local v = a * 0x10000 + b * 0x100 + c
+    local s = char(encoder[extract(v,18,6)], encoder[extract(v,12,6)], encoder[extract(v,6,6)], encoder[extract(v,0,6)])
+    t[k] = s
+    k = k + 1
+  end
+
+  if lastn == 2 then
+    local a, b = bytes[n - 1], bytes[n]
+    local v = a*0x10000 + b*0x100
+    t[k] = char(encoder[extract(v,18,6)], encoder[extract(v,12,6)], encoder[extract(v,6,6)], encoder[64])
+  elseif lastn == 1 then
+    local v = bytes[n] * 0x10000
+    t[k] = char(encoder[extract(v,18,6)], encoder[extract(v,12,6)], encoder[64], encoder[64])
+  end
+
+  return concat(t)
+end
+
+function base64.decode(b64, decoder)
   decoder = decoder or DEFAULT_DECODER
   local pattern = '[^%w%+%/%=]'
   if decoder then
@@ -85,25 +109,13 @@ function base64.decode(b64, decoder, usecaching)
     pattern = ('[^%%w%%%s%%%s%%=]'):format(char(s62), char(s63))
   end
   b64 = b64:gsub(pattern, '')
-  local cache = usecaching and {}
   local t, k = {}, 1
   local n = #b64
   local padding = b64:sub(-2) == '==' and 2 or b64:sub(-1) == '=' and 1 or 0
   for i = 1, padding > 0 and n-4 or n, 4 do
     local a, b, c, d = b64:byte(i, i+3)
-    local s
-    if usecaching then
-      local v0 = a*0x1000000 + b*0x10000 + c*0x100 + d
-      s = cache[v0]
-      if not s then
-        local v = decoder[a]*0x40000 + decoder[b]*0x1000 + decoder[c]*0x40 + decoder[d]
-        s = char(extract(v,16,8), extract(v,8,8), extract(v,0,8))
-        cache[v0] = s
-      end
-    else
-      local v = decoder[a]*0x40000 + decoder[b]*0x1000 + decoder[c]*0x40 + decoder[d]
-      s = char(extract(v,16,8), extract(v,8,8), extract(v,0,8))
-    end
+    local v = decoder[a]*0x40000 + decoder[b]*0x1000 + decoder[c]*0x40 + decoder[d]
+    local s = char(extract(v,16,8), extract(v,8,8), extract(v,0,8))
     t[k] = s
     k = k + 1
   end

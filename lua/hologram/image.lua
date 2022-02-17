@@ -10,14 +10,15 @@ local ffi = require('ffi')
 local fs = require('hologram.fs')
 local state = require('hologram.state')
 local utils = require('hologram.utils')
+local cairo = require('hologram.cairo.cairo')
 local base64 = require('hologram.base64')
 local terminal = require('hologram.terminal')
 local Rectangle = require('hologram.rectangle')
+local defaults = utils.defaults
 local keys_to_string = utils.keys_to_string
 local bytes_to_string = utils.bytes_to_string
 local winpos_to_screenpos = utils.winpos_to_screenpos
-
-_G.log = {}
+local cairo_surface_to_png_bytes = utils.cairo_surface_to_png_bytes
 
 local Image = {
   instances = {},
@@ -51,7 +52,7 @@ local next_image_id = 1
 --   id: number,
 --   window?: number,
 --   buffer: number,
---   extmark: number,
+--   extmark?: number,
 --   source: SOURCE,
 --   row: number,
 --   col: number,
@@ -74,14 +75,17 @@ local function create(opts)
   if col == nil then col = cur_col end
 
   local window  = opts.window or nil
-  local buffer  = opts.buffer or vim.api.nvim_get_current_buf()
-  local extmark = vim.api.nvim_buf_set_extmark(
-    buffer,
-    vim.g.hologram_extmark_ns,
-    opts.row,
-    opts.col,
-    {}
-  )
+  local buffer  = opts.buffer or nil
+  local extmark = nil
+  if buffer then
+    extmark = vim.api.nvim_buf_set_extmark(
+      buffer,
+      vim.g.hologram_extmark_ns,
+      opts.row,
+      opts.col,
+      {}
+    )
+  end
 
   local instance = setmetatable({
     id = next_image_id,
@@ -159,7 +163,9 @@ end
 -- Instance methods
 
 function Image:transmit(opts)
-  opts = opts or {}
+  opts = defaults(opts, {})
+  opts.display = defaults(opts.display, true)
+
   local action = 't'
 
   if self.source == SOURCE.FILE then
@@ -222,7 +228,7 @@ function Image:transmit(opts)
 
   elseif self.source == SOURCE.CAIRO then
     local params = {
-      f = FORMAT.RGBA,
+      f = FORMAT.PNG,
       v = self.height,
       s = self.width,
       a = action,
@@ -230,11 +236,8 @@ function Image:transmit(opts)
       p = 1, -- placement id
     }
 
-    local bytes, length = utils.cairo_surface_to_bytes(self.data)
-
     vim.defer_fn(function ()
-      self:transmit_data(opts, params,
-        bytes_to_string(bytes, length, 0))
+      self:transmit_data(opts, params, cairo_surface_to_png_bytes(self.data))
     end, 0)
 
   else
@@ -243,7 +246,12 @@ function Image:transmit(opts)
 end
 
 function Image:transmit_data(opts, params, content)
-  local data = base64.encode(content)
+
+  -- Encode in base64 format
+  local data =
+    type(content) == 'string'
+      and base64.encode(content)
+       or base64.encode_bytes(content)
 
   -- Split into chunks of max 4096 length
   local chunks = {}
@@ -273,7 +281,7 @@ function Image:transmit_data(opts, params, content)
 
   terminal.write(parts)
 
-  if not opts.hide then
+  if opts.display then
     self:display(opts)
   end
 end
@@ -288,15 +296,15 @@ function Image:display(opts)
         :to_pixels(state.dimensions.cell_pixels)
   end
 
-  local position = self:pos()
-  local row = position[1]
-  local col = position[2]
-
   local screen_position
   if self.window then
+    local position = self:pos()
+    local row = position[1]
+    local col = position[2]
+
     screen_position = winpos_to_screenpos(self.window, row, col)
   else
-    screen_position = { row = row + 1, col = col + 1 }
+    screen_position = { row = self.row + 1, col = self.col + 1 }
   end
 
   local cell_pixels   = state.dimensions.cell_pixels
@@ -313,11 +321,6 @@ function Image:display(opts)
     self:delete({ free = false })
     return
   end
-
-  table.insert(_G.log, {
-    screen_position = screen_position,
-    visible_region_cells = visible_region_cells,
-  })
 
   local keys = {
     a = 'p',
@@ -393,7 +396,7 @@ function Image:delete(opts)
     terminal.write('\x1b_Ga=d,' .. keys_to_string(keys) .. '\x1b\\')
   end
 
-  if opts.free then
+  if opts.free and self.extmark then
     vim.api.nvim_buf_del_extmark(self.buffer, vim.g.hologram_extmark_ns, self.extmark)
   end
 end
@@ -430,12 +433,20 @@ function Image:identify()
 end
 
 function Image:move(row, col)
+  -- TODO: handle absolute images
+  if not self.extmark then
+    return
+  end
   vim.api.nvim_buf_set_extmark(self.buffer, vim.g.hologram_extmark_ns, row, col, {
     id = self.extmark
   })
 end
 
 function Image:pos()
+  -- TODO: handle absolute images
+  if not self.extmark then
+    return
+  end
   return vim.api.nvim_buf_get_extmark_by_id(
     self.buffer, vim.g.hologram_extmark_ns, self.extmark, {})
 end

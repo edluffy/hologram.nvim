@@ -1,8 +1,14 @@
+local vim = _G.vim
 local bit = _G.bit
 local ffi = require('ffi')
+local cairo = require('hologram.cairo.cairo')
 local Rectangle = require('hologram.rectangle')
 
 local m = {}
+
+function m.defaults(v, default_value)
+  return type(v) == 'nil' and default_value or v
+end
 
 function m.keys_to_string(keys)
   local entries = {}
@@ -33,8 +39,10 @@ function m.bytes_to_string(data, length, start)
   return table.concat(s)
 end
 
+-- Unused at the moment
 function m.cairo_surface_to_bytes(surface)
   -- convert bgra to argb
+  -- PERF: Using ffi primitives could be faster but was causing segfaults
 
   local width = surface:width()
   local height = surface:height()
@@ -42,7 +50,7 @@ function m.cairo_surface_to_bytes(surface)
   local length = width * height
 
   local argb = ffi.cast('uint32_t*', surface:data())
-  local rgba = ffi.new('uint32_t[?]', length)
+  local rgba = {} -- ffi.new('uint32_t[?]', length)
 
   for line = 0, height - 1 do
     for col = 0, width - 1 do
@@ -54,17 +62,39 @@ function m.cairo_surface_to_bytes(surface)
       local green = bit.rshift(bit.band(value, 0x0000ff00),  8)
       local blue  = bit.rshift(bit.band(value, 0x000000ff),  0)
 
-      rgba[i] =
-        bit.lshift(red,   24) +
-        bit.lshift(green, 16) +
-        bit.lshift(blue,   8) +
-        bit.lshift(alpha,  0)
+      -- rgba[i] =
+      --   bit.lshift(red,   24) +
+      --   bit.lshift(green, 16) +
+      --   bit.lshift(blue,   8) +
+      --   bit.lshift(alpha,  0)
+
+      table.insert(rgba, red)
+      table.insert(rgba, green)
+      table.insert(rgba, blue)
+      table.insert(rgba, alpha)
     end
   end
 
-  local bytes = ffi.cast('uint8_t*', rgba)
+  -- local bytes = ffi.cast('uint8_t*', rgba)
+  -- return bytes, length * 4
 
-  return bytes, length * 4
+  return rgba, length * 4
+end
+
+function m.cairo_surface_to_png_bytes(surface)
+  local bytes = {}
+
+  surface:save_png(function(_, data, length)
+    local byte_data = ffi.cast('uint8_t*', data)
+
+    for i = 0, length - 1 do
+      table.insert(bytes, byte_data[i])
+    end
+
+    return cairo.enums.CAIRO_STATUS_.success
+  end, nil)
+
+  return bytes
 end
 
 -- 1-indexed

@@ -7,6 +7,9 @@ stdout:open(1)
 local terminal = {}
 
 function terminal.write(data)
+  if #data == 0 then
+    return
+  end
   stdout:write(data)
 end
 
