@@ -83,7 +83,7 @@ end
 function hologram.update_images(buf)
     if buf == 0 then buf = vim.api.nvim_get_current_buf() end
 
-    for _, ext_loc in ipairs(hologram.get_ext_loclist()) do
+    for _, ext_loc in ipairs(hologram.get_ext_loclist(0)) do
         local ext, _, _ = unpack(ext_loc)
 
         local img = hologram.get_image(buf, ext)
