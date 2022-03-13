@@ -155,6 +155,8 @@ function hologram.gen_images(buf, ft)
                 hologram.add_image(buf, source, row, 0)
             end
         end
+    else
+        vim.api.nvim_err_writeln('Unsupported filetype `' .. ft .. '`. Please check documentation for supported filetypes.')
     end
 end
 
