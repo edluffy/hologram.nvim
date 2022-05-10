@@ -45,22 +45,8 @@ end
 -- @param data
 -- @param opts
 function hologram.add_image(data, opts)
-    local row = opts.row
-    local col = opts.col
-    local buf = opts.buf
-    if buf == 0 then buf = vim.api.nvim_get_current_buf() end
-    local window = buf and vim.fn.bufwinid(buf) or nil
-
-    local image_opts = {
-        window = window,
-        buffer = buf,
-        row = row,
-        col = col,
-    }
-
-    local img = Image.new(data, image_opts)
+    local img = Image.new(data, opts)
     img:transmit()
-
     return img
 end
 

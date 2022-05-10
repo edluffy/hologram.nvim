@@ -108,6 +108,14 @@ local function create(opts)
 end
 
 function Image.new(data, opts)
+  if opts.buffer == 0 then
+    opts.buffer = vim.api.nvim_get_current_buf()
+  end
+
+  if opts.buffer ~= nil then
+    opts.window = vim.fn.bufwinid(opts.buffer)
+  end
+
   local image = nil
   if type(data) == 'string' then
     image = Image.from_file(data, opts)

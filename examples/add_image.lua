@@ -21,7 +21,7 @@ cr:stroke_preserve()
 cr:restore()
 surface:flush()
 
-h.add_image(surface, { buf = 0, row = 0, col = 0 })
+h.add_image(surface, { buffer = 0, row = 0, col = 0 })
 
 
 
