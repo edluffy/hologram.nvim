@@ -25,7 +25,6 @@ local function setup(opts)
   png.enable()
 end
 
-
 return vim.tbl_extend('keep', api, {
   setup = setup,
 })
