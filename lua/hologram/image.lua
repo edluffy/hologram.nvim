@@ -1,10 +1,8 @@
 local Job = require('hologram.job')
 local base64 = require('hologram.base64')
+local terminal = require('hologram.terminal')
 
 local image = {}
-
-local stdout = vim.loop.new_pipe(false)
-stdout:open(1)
 
 local Image = {}
 Image.__index = Image
@@ -30,88 +28,57 @@ function Image:new(opts)
     return obj
 end
 
---[[
-     All Kitty graphics commands are of the form:
-
-   '<ESC>_G<control data>;<payload><ESC>\'
-
-     <control keys> - a=T,f=100....
-          <payload> - base64 enc. file data
-              <ESC> - \x1b or \27 (*)
-
-     (*) Lua5.1/LuaJIT accepts escape seq. in dec or hex form (not octal).
-]]--
-
-
 function Image:transmit(opts)
     opts = opts or {}
     opts.medium = opts.medium or 'f'
     local set_case = opts.hide and string.lower or string.upper
 
-    local data = base64.encode(self.source)
-
-    if not opts.hide then image.move_cursor(self:pos()) end
-
-    -- Split into chunks of max 4096 length
-    local chunks = {}
-    for i = 1, #data, 4096 do
-        local chunk = data:sub(i, i + 4096 - 1):gsub('%s', '')
-        if #chunk > 0 then
-            table.insert(chunks, chunk)
-        end
-    end
-
     local keys = {
-        i = self.id,
-        t = opts.medium:sub(1, 1),
-        f = opts.format or 100,
-        v = opts.height or nil,
-        s = opts.width or nil,
-        p = 1,
-        a = set_case('t'),
-        q = 2, --supress response
+        image_id = self.id,
+        transmission_type = opts.medium:sub(1, 1),
+        format = opts.format or 100,
+        placement_id = 1,
+        action = set_case('t'),
+        quiet = 2, --supress response
     }
 
-    for i, chunk in ipairs(chunks) do
-        local is_last = i == #chunks
-
-        if not is_last then
-            keys.m = 1
-        else
-            keys.m = 0
-        end
-        stdout:write('\x1b_G' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\')
-        keys = {}
-    end
-    if not opts.hide then image.restore_cursor() end
+    if not opts.hide then terminal.move_cursor(self:pos()) end
+    terminal.send_graphics_command(keys, self.source)
+    if not opts.hide then terminal.restore_cursor() end
 
 end
 
 function Image:adjust(opts)
     opts = opts or {}
-    opts.crop = opts.crop or {}
-    opts.area = opts.area or {}
-    opts.edge = opts.edge or {}
-    opts.offset = opts.offset or {}
+    opts = vim.tbl_extend('keep', opts, {
+        z_index = 0,
+        crop = {},
+        area = {},
+        edge = {},
+        offset = {},
+        placement_id = 1
+    })
 
     local keys = {
-        i = self.id,
-        z = opts.z_index,
-        w = opts.crop[1],
-        h = opts.crop[2],
-        c = opts.area[1],
-        r = opts.area[2],
-        x = opts.edge[1],
-        y = opts.edge[2],
-        X = opts.offset[1],
-        Y = opts.offset[2],
-        q = 2, -- suppress responses
-        p = 1,
+        action = 'p',
+        image_id = self.id,
+        z_index = opts.z_index,
+        width = opts.crop[1],
+        height = opts.crop[2],
+        cols = opts.area[1],
+        rows = opts.area[2],
+        x_offset = opts.edge[1],
+        y_offset = opts.edge[2],
+        cell_x_offset = opts.offset[1],
+        cell_y_offset = opts.offset[2],
+        placement_id = opts.placement_id,
+        cursor_movement = 1,
+        quiet = 2,
     }
 
-    image.move_cursor(self:pos())
-    stdout:write('\x1b_Ga=p,' .. image.keys_to_str(keys) .. '\x1b\\')
-    image.restore_cursor()
+    terminal.move_cursor(self:pos())
+    terminal.send_graphics_command(keys)
+    terminal.restore_cursor()
 end
 
 function Image:delete(opts)
@@ -159,7 +126,7 @@ function Image:delete(opts)
     end
 
     for _, keys in ipairs(keys_set) do
-        stdout:write('\x1b_Ga=d,' .. image.keys_to_str(keys) .. '\x1b\\')
+        terminal.send_graphics_command(keys)
     end
 
     if opts.free then
@@ -201,45 +168,6 @@ end
 
 function Image:ext()
     return self.id % 100
-end
-
--- Works by calculating offset between cursor and desired position.
--- Bypasses need to translate between terminal cols/rows and nvim window cols/rows ;)
-function image.move_cursor(row, col)
-    local cur_row, cur_col = unpack(vim.api.nvim_win_get_cursor(0))
-    local dr = row - cur_row
-    local dc = col - cur_col
-
-    -- Find direction to move in
-    local key1, key2
-
-    if dr < 0 then
-        key1 = 'A'  -- up
-    else
-        key1 = 'B'  -- down
-    end
-
-    if dc < 0 then
-        key2 = 'D' -- right
-    else
-        key2 = 'C' -- left
-    end
-
-    stdout:write('\x1b[s') -- save position
-    stdout:write('\x1b[' .. math.abs(dr) .. key1)
-    stdout:write('\x1b[' .. math.abs(dc) .. key2)
-end
-
-function image.restore_cursor()
-    stdout:write('\x1b[u')
-end
-
-function image.keys_to_str(keys)
-    local str = ''
-    for k, v in pairs(keys) do
-        str = str..k..'='..v..','
-    end
-    return str:sub(0, -2) -- chop trailing comma
 end
 
 return Image
