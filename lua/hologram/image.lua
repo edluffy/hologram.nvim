@@ -1,4 +1,5 @@
 local Job = require('hologram.job')
+local base64 = require('hologram.base64')
 
 local image = {}
 
@@ -44,74 +45,46 @@ end
 
 function Image:transmit(opts)
     opts = opts or {}
-    opts.medium = opts.medium or 'direct'
+    opts.medium = opts.medium or 'f'
     local set_case = opts.hide and string.lower or string.upper
 
-    local cmd, args
-    if vim.fn.executable('base64') == 1 then
-        cmd = 'base64'
-        args = {self.source}
-    elseif vim.fn.executable('openssl') == 1 then
-        cmd = 'openssl'
-        args = {'base64', '-A', '-in', self.source}
-    else
-        vim.api.nvim_err_writeln("No base64 executable found, requires one of:"..
-            " coreutils, openssl")
-        return
+    local data = base64.encode(self.source)
+
+    if not opts.hide then image.move_cursor(self:pos()) end
+
+    -- Split into chunks of max 4096 length
+    local chunks = {}
+    for i = 1, #data, 4096 do
+        local chunk = data:sub(i, i + 4096 - 1):gsub('%s', '')
+        if #chunk > 0 then
+            table.insert(chunks, chunk)
+        end
     end
 
-    local data = ''
+    local keys = {
+        i = self.id,
+        t = opts.medium:sub(1, 1),
+        f = opts.format or 100,
+        v = opts.height or nil,
+        s = opts.width or nil,
+        p = 1,
+        a = set_case('t'),
+        q = 2, --supress response
+    }
 
-    Job:new({
+    for i, chunk in ipairs(chunks) do
+        local is_last = i == #chunks
 
-        cmd = cmd,
-        args = args,
-        on_data = function(part) -- arrives in 8192 size chunks
-            data = data .. part:gsub('%s', ''):gsub('\n', '')
-        end,
-        on_done = vim.schedule_wrap(function()
-            if not opts.hide then image.move_cursor(self:pos()) end
+        if not is_last then
+            keys.m = 1
+        else
+            keys.m = 0
+        end
+        stdout:write('\x1b_G' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\')
+        keys = {}
+    end
+    if not opts.hide then image.restore_cursor() end
 
-            -- Split into chunks of max 4096 length
-            local chunks = {}
-            for i = 1, #data, 4096 do
-                local chunk = data:sub(i, i + 4096 - 1):gsub('%s', '')
-                if #chunk > 0 then
-                    table.insert(chunks, chunk)
-                end
-            end
-
-            local keys = {
-                i = self.id,
-                t = opts.medium:sub(1, 1),
-                f = opts.format or 100,
-                v = opts.height or nil,
-                s = opts.width or nil,
-                p = 1,
-                a = set_case('t'),
-                q = 2, --supress response
-            }
-
-            local parts = {}
-            for i, chunk in ipairs(chunks) do
-                local is_last = i == #chunks
-
-                if not is_last then
-                    keys.m = 1
-                else
-                    keys.m = 0
-                end
-
-                local part = '\x1b_G' .. image.keys_to_str(keys) .. ';' .. chunk .. '\x1b\\'
-                table.insert(parts, part)
-                keys = {}
-            end
-
-            stdout:write(parts)
-
-            if not opts.hide then image.restore_cursor() end
-        end),
-    }):start()
 end
 
 function Image:adjust(opts)
