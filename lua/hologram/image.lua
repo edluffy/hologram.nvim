@@ -1,6 +1,7 @@
 local Job = require('hologram.job')
 local base64 = require('hologram.base64')
 local terminal = require('hologram.terminal')
+local utils = require('hologram.utils')
 
 local image = {}
 
@@ -19,7 +20,7 @@ function Image:new(opts)
     local ext = vim.api.nvim_buf_set_extmark(buf, vim.g.hologram_extmark_ns, opts.row, opts.col, {})
 
     local obj = setmetatable({
-        id = buf*100 + ext,
+        id = ext,
         source = opts.source
     }, self)
 
@@ -42,7 +43,7 @@ function Image:transmit(opts)
         quiet = 2, --supress response
     }
 
-    if not opts.hide then terminal.move_cursor(self:pos()) end
+    if not opts.hide then terminal.move_cursor(image.winpos(self.id)) end
     terminal.send_graphics_command(keys, self.source)
     if not opts.hide then terminal.restore_cursor() end
 
@@ -76,7 +77,7 @@ function Image:adjust(opts)
         quiet = 2,
     }
 
-    terminal.move_cursor(self:pos())
+    terminal.move_cursor(image.winpos(self.id))
     terminal.send_graphics_command(keys)
     terminal.restore_cursor()
 end
@@ -130,7 +131,7 @@ function Image:delete(opts)
     end
 
     if opts.free then
-        vim.api.nvim_buf_del_extmark(self:buf(), vim.g.hologram_extmark_ns, self:ext())
+        vim.api.nvim_buf_del_extmark(0, vim.g.hologram_extmark_ns, self:ext())
     end
 end
 
@@ -153,21 +154,30 @@ function Image:identify()
 end
 
 function Image:move(row, col)
-    vim.api.nvim_buf_set_extmark(self:buf(), vim.g.hologram_extmark_ns, row, col, {
-        id = self:ext()
+    vim.api.nvim_buf_set_extmark(0, vim.g.hologram_extmark_ns, row, col, {
+        id = self.id
     })
 end
 
-function Image:pos()
-    return unpack(vim.api.nvim_buf_get_extmark_by_id(self:buf(), vim.g.hologram_extmark_ns, self:ext(), {}))
+function image.bufpos(id, buf)
+    if buf == nil then buf = 0 end
+
+    local row, col = unpack(vim.api.nvim_buf_get_extmark_by_id(0,
+        vim.g.hologram_extmark_ns, id, {}))
+    return col, row
 end
 
-function Image:buf()
-    return math.floor(self.id/100)
+function image.winpos(id, win)
+    if win == nil then win = 0 end
+    local wb = utils.winbounds(win)
+    local col, row = image.bufpos(id)
+
+    row = row-vim.fn.line('w0')
+    row = row + wb.top
+    col = col + wb.left
+
+    return col, row
 end
 
-function Image:ext()
-    return self.id % 100
-end
 
 return Image
