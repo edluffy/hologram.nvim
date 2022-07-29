@@ -24,12 +24,12 @@ local CTRL_KEYS = {
     -- Transmission
     format = 'f',
     transmission_type = 't',
-    --data_width = 's',
-    --data_height = 'v',
+    data_width = 's',
+    data_height = 'v',
     data_size = 'S',
     data_offset = 'O',
     image_id = 'i',
-    --image_number = 'I',
+    image_number = 'I',
     compressed = 'o',
     more = 'm',
 
@@ -50,9 +50,12 @@ local CTRL_KEYS = {
 }
 
 function terminal.send_graphics_command(keys, payload)
+    if payload and string.len(payload) > 4096 then keys.more = 1 else keys.more = 0 end
     local ctrl = ''
     for k, v in pairs(keys) do
-        ctrl = ctrl..CTRL_KEYS[k]..'='..v..','
+        if v ~= nil then
+            ctrl = ctrl..CTRL_KEYS[k]..'='..v..','
+        end
     end
     ctrl = ctrl:sub(0, -2) -- chop trailing comma
 
@@ -62,11 +65,11 @@ function terminal.send_graphics_command(keys, payload)
         end
         payload = terminal.get_chunked(payload)
         for i=1,#payload do
-            stdout:write('\x1b_G'..ctrl..';'..payload[i]..'\x1b\\')
+            terminal.write('\x1b_G'..ctrl..';'..payload[i]..'\x1b\\')
             if i == #payload-1 then ctrl = 'm=0' else ctrl = 'm=1' end
         end
     else
-        stdout:write('\x1b_G'..ctrl..'\x1b\\')
+        terminal.write('\x1b_G'..ctrl..'\x1b\\')
     end
 end
 
@@ -83,12 +86,17 @@ function terminal.get_chunked(str)
 end
 
 function terminal.move_cursor(col, row)
-    stdout:write('\x1b[s')
-    stdout:write('\x1b['..row..':'..col..'H')
+    terminal.write('\x1b[s')
+    terminal.write('\x1b['..row..':'..col..'H')
 end
 
 function terminal.restore_cursor()
-    stdout:write('\x1b[u')
+    terminal.write('\x1b[u')
 end
+
+-- glob together writes to stdout
+terminal.write = vim.schedule_wrap(function(data)
+    stdout:write(data)
+end)
 
 return terminal
