@@ -11,32 +11,34 @@ function hologram.setup(opts)
 
     state.update_cell_size()
 
-    vim.api.nvim_set_decoration_provider(vim.g.hologram_extmark_ns, {
-        on_win = function(_, win, buf, top, bot)
-            vim.schedule(function() hologram.buf_render_images(buf, top, bot) end)
-        end
-    })
+    if opts.auto_display == true then
+        vim.api.nvim_set_decoration_provider(vim.g.hologram_extmark_ns, {
+            on_win = function(_, win, buf, top, bot)
+                vim.schedule(function() hologram.buf_render_images(buf, top, bot) end)
+            end
+        })
 
-    vim.api.nvim_create_autocmd({'BufWinLeave'}, {
-        callback = function(au)
-            hologram.buf_delete_images(au.buf, 0, -1)
-        end,
-    })
+        vim.api.nvim_create_autocmd({'BufWinLeave'}, {
+            callback = function(au)
+                hologram.buf_delete_images(au.buf, 0, -1)
+            end,
+        })
 
-    vim.api.nvim_create_autocmd({'BufWinEnter'}, {
-        callback = function(au)
-            vim.api.nvim_buf_attach(au.buf, false, {
-                on_lines = function(_, buf, tick, first, last)
-                    hologram.buf_delete_images(buf, first, last)
-                    hologram.buf_generate_images(buf, first, last)
-                end,
-                on_detach = function(_, buf)
-                    hologram.buf_delete_images(buf, 0, -1)
-                end
-            })
-            hologram.buf_generate_images(au.buf, 0, -1)
-        end
-    })
+        vim.api.nvim_create_autocmd({'BufWinEnter'}, {
+            callback = function(au)
+                vim.api.nvim_buf_attach(au.buf, false, {
+                    on_lines = function(_, buf, tick, first, last)
+                        hologram.buf_delete_images(buf, first, last)
+                        hologram.buf_generate_images(buf, first, last)
+                    end,
+                    on_detach = function(_, buf)
+                        hologram.buf_delete_images(buf, 0, -1)
+                    end
+                })
+                hologram.buf_generate_images(au.buf, 0, -1)
+            end
+        })
+    end
 end
 
 local prev_ids = {}
