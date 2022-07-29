@@ -85,7 +85,7 @@ function terminal.get_chunked(str)
     return chunks
 end
 
-function terminal.move_cursor(col, row)
+function terminal.move_cursor(row, col)
     terminal.write('\x1b[s')
     terminal.write('\x1b['..row..':'..col..'H')
 end

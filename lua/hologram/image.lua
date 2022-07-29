@@ -1,183 +1,192 @@
-local Job = require('hologram.job')
-local base64 = require('hologram.base64')
 local terminal = require('hologram.terminal')
+local fs = require('hologram.fs')
 local utils = require('hologram.utils')
+local state = require('hologram.state')
 
-local image = {}
-
-local Image = {}
+local Image = {
+    instances = {},
+    next_id = 1,
+}
 Image.__index = Image
 
--- source, row, col
-function Image:new(opts)
-    opts = opts or {}
-
-    local cur_row, cur_col = unpack(vim.api.nvim_win_get_cursor(0))
-    opts.row = opts.row or cur_row
-    opts.col = opts.col or cur_col
-
-    local buf = vim.api.nvim_get_current_buf()
-    local ext = vim.api.nvim_buf_set_extmark(buf, vim.g.hologram_extmark_ns, opts.row, opts.col, {})
-
-    local obj = setmetatable({
-        id = ext,
-        source = opts.source
-    }, self)
-
-    obj:identify()
-
-    return obj
-end
-
-function Image:transmit(opts)
-    opts = opts or {}
-    opts.medium = opts.medium or 'f'
-    local set_case = opts.hide and string.lower or string.upper
-
-    local keys = {
-        image_id = self.id,
-        transmission_type = opts.medium:sub(1, 1),
-        format = opts.format or 100,
+function Image:new(source, keys)
+    keys = keys or {}
+    keys = vim.tbl_extend('keep', keys, {
+        format = 100,
+        transmission_type = 'f',
+        data_width = nil,
+        data_height = nil,
+        data_size = nil,
+        data_offset = nil,
+        image_number = nil,
+        compressed = nil,
+        image_id = nil,
         placement_id = 1,
-        action = set_case('t'),
-        quiet = 2, --supress response
-    }
-
-    if not opts.hide then terminal.move_cursor(image.winpos(self.id)) end
-    terminal.send_graphics_command(keys, self.source)
-    if not opts.hide then terminal.restore_cursor() end
-
-end
-
-function Image:adjust(opts)
-    opts = opts or {}
-    opts = vim.tbl_extend('keep', opts, {
-        z_index = 0,
-        crop = {},
-        area = {},
-        edge = {},
-        offset = {},
-        placement_id = 1
     })
 
-    local keys = {
-        action = 'p',
-        image_id = self.id,
-        z_index = opts.z_index,
-        width = opts.crop[1],
-        height = opts.crop[2],
-        cols = opts.area[1],
-        rows = opts.area[2],
-        x_offset = opts.edge[1],
-        y_offset = opts.edge[2],
-        cell_x_offset = opts.offset[1],
-        cell_y_offset = opts.offset[2],
-        placement_id = opts.placement_id,
-        cursor_movement = 1,
-        quiet = 2,
-    }
+    if keys.image_id == nil then
+        keys.image_id = Image.next_id
+        Image.next_id = Image.next_id + 1
+    end
 
-    terminal.move_cursor(image.winpos(self.id))
-    terminal.send_graphics_command(keys)
-    terminal.restore_cursor()
+    assert(type(source) == 'string', 'Image source is not a valid string')
+    if keys.data_width == nil and keys.data_height == nil then
+        if source:sub(-4) == '.png' then
+            keys.data_width, keys.data_height = fs.get_dims_PNG(source)
+        end
+    end
+    local cols = math.ceil(keys.data_width/state.cell_size.x)
+    local rows = math.ceil(keys.data_height/state.cell_size.y)
+
+    keys.action = 't'
+    keys.quiet = 2
+
+    terminal.send_graphics_command(keys, source)
+
+    Image.instances[keys.image_id] = setmetatable({
+        source = source,
+        transmit_keys = keys,
+        cols = cols,
+        rows = rows,
+        vpad = nil,
+    }, self)
+
+    return Image.instances[keys.image_id]
 end
 
-function Image:delete(opts)
+function Image:display(row, col, buf, keys)
+    keys = keys or {}
+    keys = vim.tbl_extend('keep', keys, {
+        x_offset = nil,
+        y_offset = nil,
+        width = nil,
+        height = nil,
+        cell_x = nil,
+        cell_y = nil,
+        cols = nil,
+        rows = nil,
+        z_index = 0,
+        placement_id = 1,
+    })
+
+    keys.action = 'p'
+    keys.image_id = self.transmit_keys.image_id
+    keys.cursor_movement = 1
+    keys.quiet = 2
+
+    keys.rows = self.rows
+    keys.cols = self.cols
+    keys.height = self.transmit_keys.data_height
+    keys.width = self.transmit_keys.data_width
+    keys.y_offset = 0
+
+    -- fit inside buffer
+    if vim.api.nvim_buf_is_valid(buf) then
+        local win = vim.fn.bufwinid(buf)
+        local cs = state.cell_size
+        local info = vim.fn.getwininfo(win)[1]
+
+        -- resize
+        local winwidth = (info.width-info.textoff)
+        if self.cols > winwidth then
+            keys.cols = winwidth
+            keys.rows = winwidth * (self.rows/self.cols)
+        end
+        local row_factor = self.rows / keys.rows
+
+        -- set filler lines
+        self:set_vpad(buf, row, info.width, math.ceil(keys.rows))
+
+        -- check if visible
+        if row < info.topline-1 or row > info.botline then
+            return false
+        end
+
+        -- image is cut off top
+        if row == info.topline-1 then
+            local topfill = vim.fn.winsaveview().topfill
+            local cutoff_rows = math.max(0, keys.rows-topfill)
+            keys.y_offset = cutoff_rows * row_factor * cs.y
+            keys.rows = topfill
+        end
+
+        -- image is cut off bottom
+        if row == info.botline then
+            local screen_row = utils.buf_screenpos(row, 0, win, buf)
+            local screen_winbot = info.winrow+info.height
+            local visible_rows = screen_winbot-screen_row
+            if visible_rows > 0 then
+                keys.rows = visible_rows
+                keys.height = visible_rows * row_factor * cs.y
+            else
+                keys.rows = 0
+                keys.height = 1
+            end
+        end
+
+        keys.rows = math.ceil(keys.rows)
+        keys.cols = math.ceil(keys.cols)
+        keys.y_offset = math.ceil(keys.y_offset)
+        keys.height = math.ceil(keys.height)
+
+        row, col = utils.buf_screenpos(row, col, win, buf)
+    end
+
+    terminal.move_cursor(row, col)
+    terminal.send_graphics_command(keys)
+    terminal.restore_cursor()
+
+    return true
+end
+
+function Image:delete(buf, opts)
     opts = opts or {}
-    opts.free = opts.free or false
-    opts.all = opts.all or false
+    opts = vim.tbl_extend('keep', opts, {
+        free = false,
+    })
 
     local set_case = opts.free and string.upper or string.lower
 
-    local keys_set = {}
-
-    keys_set[#keys_set+1] = {
-        i = self.id,
+    local keys = {
+        action = 'd',
+        delete_action = set_case('i'),
+        image_id = self.transmit_keys.image_id,
     }
 
-    if opts.all then
-        keys_set[#keys_set+1] = {
-            d = set_case('a'),
-        }
-    end
-    if opts.z_index then
-        keys_set[#keys_set+1] = {
-            d = set_case('z'),
-            z = opts.z_index,
-        }
-    end
-    if opts.col then
-        keys_set[#keys_set+1] = {
-            d = set_case('x'),
-            x = opts.col,
-        }
-    end
-    if opts.row then
-        keys_set[#keys_set+1] = {
-            d = set_case('y'),
-            y = opts.row,
-        }
-    end
-    if opts.cell then
-        keys_set[#keys_set+1] = {
-            d = set_case('p'),
-            x = opts.cell[1],
-            y = opts.cell[2],
-        }
-    end
-
-    for _, keys in ipairs(keys_set) do
-        terminal.send_graphics_command(keys)
-    end
-
+    terminal.send_graphics_command(keys)
     if opts.free then
-        vim.api.nvim_buf_del_extmark(0, vim.g.hologram_extmark_ns, self:ext())
+        self:remove_vpad(buf)
     end
 end
 
-function Image:identify()
-    -- Get image width + height
-    if vim.fn.executable('identify') == 1 then
-        Job:new({
-            cmd = 'identify',
-            args = {'-format', '%hx%w', self.source},
-            on_data = function(data)
-                data = {data:match("(.+)x(.+)")}
-                self.height = tonumber(data[1])
-                self.width  = tonumber(data[2])
-            end,
-        }):start()
-    else
-        vim.api.nvim_err_writeln("Unable to run command 'identify'."..
-            " Make sure ImageMagick is installed.")
+function Image:set_vpad(buf, row, cols, rows)
+    if self.vpad ~= nil and 
+        self.vpad.row == row and 
+        self.vpad.cols == cols and 
+        self.vpad.rows == rows then
+        return
     end
-end
 
-function Image:move(row, col)
-    vim.api.nvim_buf_set_extmark(0, vim.g.hologram_extmark_ns, row, col, {
-        id = self.id
+    local text = string.rep(' ', cols)
+    local filler = {}
+    for i=0,rows-1 do
+        filler[#filler+1] = {{text, ''}}
+    end
+
+    vim.api.nvim_buf_set_extmark(buf, vim.g.hologram_extmark_ns, row-1, 0, {
+        id = self.transmit_keys.image_id,
+        virt_lines = filler,
+        --virt_lines_leftcol = true,
     })
+
+    self.vpad = {row=row, cols=cols, rows=rows}
 end
 
-function image.bufpos(id, buf)
-    if buf == nil then buf = 0 end
-
-    local row, col = unpack(vim.api.nvim_buf_get_extmark_by_id(0,
-        vim.g.hologram_extmark_ns, id, {}))
-    return col, row
+function Image:remove_vpad(buf)
+    if self.vpad ~= nil then
+        vim.api.nvim_buf_del_extmark(buf, vim.g.hologram_extmark_ns, self.transmit_keys.image_id)
+        self.vpad = nil
+    end
 end
-
-function image.winpos(id, win)
-    if win == nil then win = 0 end
-    local wb = utils.winbounds(win)
-    local col, row = image.bufpos(id)
-
-    row = row-vim.fn.line('w0')
-    row = row + wb.top
-    col = col + wb.left
-
-    return col, row
-end
-
 
 return Image
