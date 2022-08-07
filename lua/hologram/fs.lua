@@ -4,7 +4,7 @@ local fs = {}
 
 function fs.get_dims_PNG(path)
     local fd = assert(vim.loop.fs_open(path, 'r', 438))
-    local buf = ffi.new('const unsigned char[?]', 24,
+    local buf = ffi.new('const unsigned char[?]', 25,
         assert(vim.loop.fs_read(fd, 24, 0)))
     assert(vim.loop.fs_close(fd))
 
@@ -17,7 +17,7 @@ function fs.check_sig_PNG(path)
     local fd = vim.loop.fs_open(path, 'r', 438)
     if fd == nil then return end
 
-    local sig = ffi.new('const unsigned char[?]', 8,
+    local sig = ffi.new('const unsigned char[?]', 9,
         assert(vim.loop.fs_read(fd, 8, 0)))
 
     return sig[0]==137 and sig[1]==80
