@@ -25,9 +25,16 @@ function state.update_cell_size()
         int ioctl(int, int, ...);
     ]]
 
+    local TIOCGWINSZ = nil
+    if vim.fn.has('linux') == 1 then
+        TIOCGWINSZ = 0x5413
+    elseif vim.fn.has('macos') == 1 then
+        TIOCGWINSZ = 0x40087468
+    end
+
     local sz = ffi.new("winsize")
-    local TIOCGWINSZ = 0x5413
-    ffi.C.ioctl(1, TIOCGWINSZ, sz)
+    assert(ffi.C.ioctl(1, TIOCGWINSZ, sz) == 0,
+        'Hologram failed to get screen size: detected OS is not linux or macos.')
 
     state.screen_size.x = sz.xpixel
     state.screen_size.y = sz.ypixel
