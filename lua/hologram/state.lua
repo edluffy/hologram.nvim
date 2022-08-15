@@ -28,7 +28,7 @@ function state.update_cell_size()
     local TIOCGWINSZ = nil
     if vim.fn.has('linux') == 1 then
         TIOCGWINSZ = 0x5413
-    elseif vim.fn.has('macos') == 1 then
+    elseif vim.fn.has('mac') == 1 then
         TIOCGWINSZ = 0x40087468
     end
 
