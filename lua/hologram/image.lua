@@ -74,28 +74,27 @@ function Image:display(row, col, buf, keys)
     keys.cursor_movement = 1
     keys.quiet = 2
 
-    keys.rows = self.rows
-    keys.cols = self.cols
-    keys.height = self.transmit_keys.data_height
-    keys.width = self.transmit_keys.data_width
-    keys.y_offset = 0
-
     -- fit inside buffer
     if vim.api.nvim_buf_is_valid(buf) then
         local win = vim.fn.bufwinid(buf)
         local cs = state.cell_size
         local info = vim.fn.getwininfo(win)[1]
 
+        local rows = self.rows
+        local cols = self.cols
+        local height = self.transmit_keys.data_height
+        local y_offset = 0
+
         -- resize
         local winwidth = (info.width-info.textoff)
-        if self.cols > winwidth then
-            keys.cols = winwidth
-            keys.rows = winwidth * (self.rows/self.cols)
+        if cols > winwidth then
+            rows = winwidth * (rows/cols)
+            cols = winwidth
         end
-        local row_factor = self.rows / keys.rows
+        local row_factor = self.rows / rows
 
         -- set filler lines
-        self:set_vpad(buf, row, info.width, math.ceil(keys.rows))
+        self:set_vpad(buf, row, info.width, math.ceil(rows))
 
         -- check if visible
         if row < info.topline-1 or row > info.botline then
@@ -105,9 +104,9 @@ function Image:display(row, col, buf, keys)
         -- image is cut off top
         if row == info.topline-1 then
             local topfill = vim.fn.winsaveview().topfill
-            local cutoff_rows = math.max(0, keys.rows-topfill)
-            keys.y_offset = cutoff_rows * row_factor * cs.y
-            keys.rows = topfill
+            local cutoff_rows = math.max(0, rows-topfill)
+            y_offset = cutoff_rows * row_factor * cs.y
+            rows = topfill
         end
 
         -- image is cut off bottom
@@ -116,18 +115,31 @@ function Image:display(row, col, buf, keys)
             local screen_winbot = info.winrow+info.height
             local visible_rows = screen_winbot-screen_row
             if visible_rows > 0 then
-                keys.rows = visible_rows
-                keys.height = visible_rows * row_factor * cs.y
+                rows = visible_rows
+                height = visible_rows * row_factor * cs.y
             else
-                keys.rows = 0
-                keys.height = 1
+                rows = 0
+                height = 1
             end
         end
 
-        keys.rows = math.ceil(keys.rows)
-        keys.cols = math.ceil(keys.cols)
-        keys.y_offset = math.ceil(keys.y_offset)
-        keys.height = math.ceil(keys.height)
+        rows = math.ceil(rows)
+        cols = math.ceil(cols)
+        y_offset = math.ceil(y_offset)
+        height = math.ceil(height)
+
+        if rows ~= self.rows then
+            keys.rows = rows
+        end
+        if cols ~= self.cols then
+            keys.cols = cols
+        end
+        if height ~= self.transmit_keys.data_height then
+            keys.height = height
+        end
+        if y_offset ~= 0 then
+            keys.y_offset = y_offset
+        end
 
         row, col = utils.buf_screenpos(row, col, win, buf)
     end
