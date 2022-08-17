@@ -1,10 +1,18 @@
-# hologram.nvim
-A cross platform terminal image viewer for Neovim. Extensible and fast, written in Lua and C. Works on macOS and Linux. Current support for
-[Kitty Graphics Protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol.html). Highly experimental, expect breaking changes.
+<h3 align="center">
+    <img src="https://user-images.githubusercontent.com/28115337/185177835-27fd08cd-864e-4f10-85ad-751d7a4eb431.png" alt="hologram.nvim" width="500"/>
+</h3>
 
-![showcase](https://user-images.githubusercontent.com/28115337/115054101-c0848680-9ed7-11eb-9980-a3bc2d691fc2.gif)
+<p align="center">
+    A cross platform terminal image viewer for Neovim. Extensible and fast, written in Lua and C.<br />
+    Works on macOS and Linux with current support for Kitty Graphics Protocol.<br />
+    Highly experimental, expect breaking changes 🚧.
+</p>
 
-## Install
+<p align="center">
+  <img src="https://user-images.githubusercontent.com/28115337/185186641-0c532c02-76fc-4e24-9ea6-638f23d30df4.gif" alt="showcase" />
+</p>
+
+# Install
 Using [packer.nvim](https://github.com/wbthomason/packer.nvim):
 ```lua
 use {'edluffy/hologram.nvim'}
@@ -14,7 +22,7 @@ Using [vim-plug](https://github.com/junegunn/vim-plug):
 Plug 'edluffy/hologram.nvim'
 ```
 
-## Usage
+# Usage
 Hologram.nvim allows you to view inline images directly inside a Neovim buffer. Requires the following setup in `init.lua`:
 
 ```lua
@@ -23,7 +31,7 @@ require('hologram').setup{
 }
 ```
 
-## Exposed API
+# Exposed API
 There are plans for parts of Hologram to be able to be used in other plugins, such as its image functionality.
 
 ## `image.lua`
@@ -90,7 +98,7 @@ Image:delete(id, {
 })
 ```
 
-## Roadmap
+# Roadmap
 Core functionality:
 - [ ] Support for [Kitty Graphics Protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol.html)
     - [x] Ability to transfer .png format files and display at an arbitrary location in an nvim buffer.
