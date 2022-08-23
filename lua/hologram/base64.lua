@@ -11,7 +11,7 @@ local b64 = ffi.new('unsigned const char[65]',
 function base64.encode(str)
     local band, bor, lsh, rsh = bit.band, bit.bor, bit.lshift, bit.rshift
     local len = #str
-    local enc_len = 4*(len+2)/3
+    local enc_len = 4 * math.ceil(len / 3) -- (len + 2) // 3 * 4 after Lua 5.3
 
     local src = ffi.new('unsigned const char[?]', len, str)
     local enc = ffi.new('unsigned char[?]', enc_len)
