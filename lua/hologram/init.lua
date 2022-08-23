@@ -96,10 +96,31 @@ function hologram.find_source(line)
         local inline_link = line:match('!%[.-%]%(.-%)')
         if inline_link then
             local source = inline_link:match('%((.+)%)')
-            if fs.check_sig_PNG(source) then
-                return source
+            local path = hologram._to_absolute_path(source)
+            if fs.check_sig_PNG(path) then
+                return path
             else return nil end
         end
+    end
+end
+
+function hologram._to_absolute_path(path)
+    if hologram._is_root_path(path) then
+        return path
+    else
+        -- absolute_path: folder_path + relative_path
+        local folder_path = vim.fn.expand("%:p:h")
+        local absolute_path = folder_path .. "/" .. path
+        return absolute_path
+    end
+end
+
+function hologram._is_root_path(path)
+    local first_path_char = string.sub(path, 0, 1)
+    if first_path_char == "/" then
+      return true
+    else
+      return false
     end
 end
 
