@@ -13,8 +13,8 @@ function base64.encode(str)
     local len = #str
     local enc_len = 4 * math.ceil(len / 3) -- (len + 2) // 3 * 4 after Lua 5.3
 
-    local src = ffi.new('unsigned const char[?]', len, str)
-    local enc = ffi.new('unsigned char[?]', enc_len)
+    local src = ffi.new('unsigned const char[?]', len+1, str)
+    local enc = ffi.new('unsigned char[?]', enc_len+1)
 
     local i, j = 0, 0
     while i < len-2 do
