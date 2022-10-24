@@ -44,27 +44,28 @@ end
 local prev_ids = {}
 
 function hologram.buf_render_images(buf, top, bot)
-    local exts = vim.api.nvim_buf_get_extmarks(buf,
-        vim.g.hologram_extmark_ns,
-        {math.max(top-1, 0), 0}, 
-        {bot-2, -1},
-    {})
+    local ok, exts = pcall(vim.api.nvim_buf_get_extmarks, buf,
+            vim.g.hologram_extmark_ns,
+            {math.max(top-1, 0), 0},
+            {bot-2, -1},
+        {})
+    if ok then
+        local curr_ids = {}
+        for _, ext in ipairs(exts) do
+            local id, row, col = unpack(ext)
+            Image.instances[id]:display(row+1, 0, buf, {})
+            curr_ids[#curr_ids+1] = id
+        end
 
-    local curr_ids = {}
-    for _, ext in ipairs(exts) do
-        local id, row, col = unpack(ext)
-        Image.instances[id]:display(row+1, 0, buf, {})
-        curr_ids[#curr_ids+1] = id
-    end
-
-    if prev_ids[buf] ~= nil then
-        for _, id in ipairs(prev_ids[buf]) do
-            if not vim.tbl_contains(curr_ids, id) then
-                Image.instances[id]:delete(buf, {})
+        if prev_ids[buf] ~= nil then
+            for _, id in ipairs(prev_ids[buf]) do
+                if not vim.tbl_contains(curr_ids, id) then
+                    Image.instances[id]:delete(buf, {})
+                end
             end
         end
+        prev_ids[buf] = curr_ids
     end
-    prev_ids[buf] = curr_ids
 end
 
 function hologram.buf_generate_images(buf, top, bot)
