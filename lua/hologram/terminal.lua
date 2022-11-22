@@ -87,7 +87,7 @@ end
 
 function terminal.move_cursor(row, col)
     terminal.write('\x1b[s')
-    terminal.write('\x1b['..row..':'..col..'H')
+    terminal.write('\x1b['..row..';'..col..'H')
 end
 
 function terminal.restore_cursor()
