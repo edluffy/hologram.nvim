@@ -108,6 +108,9 @@ function hologram._to_absolute_path(path)
     if hologram._is_root_path(path) then
         return path
     else
+	if hologram._is_dotted_relative_path(path) then
+	    path = string.sub(path, 3)
+        end
         -- absolute_path: folder_path + relative_path
         local folder_path = vim.fn.expand("%:p:h")
         local absolute_path = folder_path .. "/" .. path
@@ -118,6 +121,15 @@ end
 function hologram._is_root_path(path)
     local first_path_char = string.sub(path, 0, 1)
     if first_path_char == "/" then
+      return true
+    else
+      return false
+    end
+end
+
+function hologram._is_dotted_relative_path(path)
+    local first_path_char = string.sub(path, 0, 2)
+    if first_path_char == "./" then
       return true
     else
       return false
