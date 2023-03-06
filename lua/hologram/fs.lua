@@ -43,4 +43,24 @@ function fs.bytes2int(bufp)
     return bor(lsh(bufp[0],24), lsh(bufp[1],16), lsh(bufp[2],8), bufp[3])
 end
 
+function fs.get_absolute_path(path)
+    if fs._is_root_path(path) then
+        return path
+    else
+        local folder_path = vim.fn.expand("%:p:h")
+	local eventual_path = folder_path .. "/" .. path
+        local absolute_path = vim.loop.fs_realpath(eventual_path, nil)
+        return absolute_path
+    end
+end
+
+function fs._is_root_path(path)
+    local first_path_char = string.sub(path, 0, 1)
+    if first_path_char == "/" then
+      return true
+    else
+      return false
+    end
+end
+
 return fs
