@@ -9,6 +9,24 @@ local Image = {
 }
 Image.__index = Image
 
+-- TODO: proper type definition
+---@alias TransmissionType string
+
+---@class Keys
+---@field format integer
+---@field transmission_type TransmissionType
+---@field data_width integer
+---@field data_height integer
+---@field data_size integer
+---@field data_offset integer
+---@field image_number integer
+---@field compressed integer
+---@field image_id integer
+---@field placement_id integer
+
+---@param source string
+---@param keys Keys
+---@return unknown
 function Image:new(source, keys)
     keys = keys or {}
     keys = vim.tbl_extend('keep', keys, {
@@ -54,6 +72,11 @@ function Image:new(source, keys)
     return Image.instances[keys.image_id]
 end
 
+---@param row integer
+---@param col integer
+---@param buf integer buffer number
+---@param keys Keys
+---@return boolean
 function Image:display(row, col, buf, keys)
     keys = keys or {}
     keys = vim.tbl_extend('keep', keys, {
@@ -151,6 +174,8 @@ function Image:display(row, col, buf, keys)
     return true
 end
 
+---@param buf integer buffer number
+---@param opts {free: boolean?}
 function Image:delete(buf, opts)
     opts = opts or {}
     opts = vim.tbl_extend('keep', opts, {
@@ -171,6 +196,10 @@ function Image:delete(buf, opts)
     end
 end
 
+---@param buf integer buffer number
+---@param row integer
+---@param cols integer
+---@param rows integer
 function Image:set_vpad(buf, row, cols, rows)
     if self.vpad ~= nil and
         self.vpad.row == row and
@@ -194,6 +223,7 @@ function Image:set_vpad(buf, row, cols, rows)
     self.vpad = {row = row, cols = cols, rows = rows}
 end
 
+---@param buf integer buffer number
 function Image:remove_vpad(buf)
     if self.vpad ~= nil then
         vim.api.nvim_buf_del_extmark(buf, vim.g.hologram_extmark_ns, self.transmit_keys.image_id)
