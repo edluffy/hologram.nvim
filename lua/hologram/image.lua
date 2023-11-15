@@ -12,20 +12,20 @@ Image.__index = Image
 -- TODO: proper type definition
 ---@alias TransmissionType string
 
----@class Keys
+---@class NewImageArgs
 ---@field format integer
 ---@field transmission_type TransmissionType
 ---@field data_width integer
 ---@field data_height integer
----@field data_size integer
----@field data_offset integer
----@field image_number integer
----@field compressed integer
----@field image_id integer
----@field placement_id integer
+---@field data_size integer?
+---@field data_offset integer?
+---@field image_number integer?
+---@field compressed integer?
+---@field image_id integer?
+---@field placement_id integer?
 
 ---@param source string
----@param keys Keys
+---@param keys NewImageArgs
 ---@return unknown
 function Image:new(source, keys)
     keys = keys or {}
@@ -72,10 +72,22 @@ function Image:new(source, keys)
     return Image.instances[keys.image_id]
 end
 
+---@class DisplayArgs
+---@field x_offset integer?
+---@field y_offset integer?
+---@field width integer?
+---@field height integer?
+---@field cell_x integer?
+---@field cell_y integer?
+---@field cols integer?
+---@field rows integer?
+---@field z_index integer?
+---@field placement_id integer?
+
 ---@param row integer
 ---@param col integer
 ---@param buf integer buffer number
----@param keys Keys
+---@param keys DisplayArgs
 ---@return boolean
 function Image:display(row, col, buf, keys)
     keys = keys or {}
