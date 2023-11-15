@@ -14,7 +14,7 @@ local stdout = vim.loop.new_tty(1, false)
 
      (*) Lua5.1/LuaJIT accepts escape seq. in dec or hex form (not octal).
 ]]
-   --
+--
 
 local CTRL_KEYS = {
 	-- General
@@ -58,7 +58,7 @@ function terminal.send_graphics_command(keys, payload)
 			ctrl = ctrl .. CTRL_KEYS[k] .. '=' .. v .. ','
 		end
 	end
-	ctrl = ctrl:sub(0, -2)  -- chop trailing comma
+	ctrl = ctrl:sub(0, -2) -- chop trailing comma
 
 	if payload then
 		if keys.transmission_type ~= 'd' then
@@ -108,7 +108,11 @@ end
 
 -- glob together writes to stdout
 terminal.write = vim.schedule_wrap(function(data)
-	stdout:write(data)
+	if stdout then
+		stdout:write(data)
+	else
+		vim.notify('failed to get tty via vim.loop.new_tty()', vim.log.levels.ERROR)
+	end
 end)
 
 return terminal

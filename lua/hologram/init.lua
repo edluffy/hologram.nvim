@@ -3,6 +3,9 @@ local state = require('hologram.state')
 local Image = require('hologram.image')
 local fs = require('hologram.fs')
 
+---@class HologramSetupOpts
+---@field auto_display boolean?
+
 function hologram.setup(opts)
     -- Create autocommands
     local augroup = vim.api.nvim_create_augroup('Hologram', {clear = false})
@@ -43,6 +46,9 @@ end
 
 local prev_ids = {}
 
+---@param buf integer buffer number
+---@param top integer
+---@param bot integer
 function hologram.buf_render_images(buf, top, bot)
     local exts = vim.api.nvim_buf_get_extmarks(buf,
         vim.g.hologram_extmark_ns,
@@ -67,6 +73,9 @@ function hologram.buf_render_images(buf, top, bot)
     prev_ids[buf] = curr_ids
 end
 
+---@param buf integer buffer number
+---@param top integer
+---@param bot integer
 function hologram.buf_generate_images(buf, top, bot)
     local lines = vim.api.nvim_buf_get_lines(buf, top, bot, false)
     for n, line in ipairs(lines) do
@@ -78,6 +87,9 @@ function hologram.buf_generate_images(buf, top, bot)
     end
 end
 
+---@param buf integer buffer number
+---@param top integer
+---@param bot integer
 function hologram.buf_delete_images(buf, top, bot)
     local exts = vim.api.nvim_buf_get_extmarks(buf,
         vim.g.hologram_extmark_ns,
@@ -91,6 +103,8 @@ function hologram.buf_delete_images(buf, top, bot)
     end
 end
 
+---@param line string
+---@return string? path absolute path to the image if it is valid
 function hologram.find_source(line)
     if line:find('png') then
         local inline_link = line:match('!%[.-%]%(.-%)')
@@ -106,6 +120,8 @@ function hologram.find_source(line)
     end
 end
 
+---@param path string
+---@return string
 function hologram._to_absolute_path(path)
     if hologram._is_root_path(path) then
         return path
@@ -117,6 +133,8 @@ function hologram._to_absolute_path(path)
     end
 end
 
+---@param path string
+---@return boolean
 function hologram._is_root_path(path)
     local first_path_char = string.sub(path, 0, 1)
     if first_path_char == '/' then
