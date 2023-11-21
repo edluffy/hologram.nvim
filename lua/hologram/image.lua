@@ -9,6 +9,24 @@ local Image = {
 }
 Image.__index = Image
 
+-- TODO: proper type definition
+---@alias TransmissionType string
+
+---@class NewImageArgs
+---@field format integer
+---@field transmission_type TransmissionType
+---@field data_width integer
+---@field data_height integer
+---@field data_size integer?
+---@field data_offset integer?
+---@field image_number integer?
+---@field compressed integer?
+---@field image_id integer?
+---@field placement_id integer?
+
+---@param source string
+---@param keys NewImageArgs
+---@return unknown
 function Image:new(source, keys)
     keys = keys or {}
     keys = vim.tbl_extend('keep', keys, {
@@ -35,8 +53,8 @@ function Image:new(source, keys)
             keys.data_width, keys.data_height = fs.get_dims_PNG(source)
         end
     end
-    local cols = math.ceil(keys.data_width/state.cell_size.x)
-    local rows = math.ceil(keys.data_height/state.cell_size.y)
+    local cols = math.ceil(keys.data_width / state.cell_size.x)
+    local rows = math.ceil(keys.data_height / state.cell_size.y)
 
     keys.action = 't'
     keys.quiet = 2
@@ -54,6 +72,23 @@ function Image:new(source, keys)
     return Image.instances[keys.image_id]
 end
 
+---@class DisplayArgs
+---@field x_offset integer?
+---@field y_offset integer?
+---@field width integer?
+---@field height integer?
+---@field cell_x integer?
+---@field cell_y integer?
+---@field cols integer?
+---@field rows integer?
+---@field z_index integer?
+---@field placement_id integer?
+
+---@param row integer
+---@param col integer
+---@param buf integer buffer number
+---@param keys DisplayArgs
+---@return boolean
 function Image:display(row, col, buf, keys)
     keys = keys or {}
     keys = vim.tbl_extend('keep', keys, {
@@ -86,9 +121,9 @@ function Image:display(row, col, buf, keys)
         local y_offset = 0
 
         -- resize
-        local winwidth = (info.width-info.textoff)
+        local winwidth = (info.width - info.textoff)
         if cols > winwidth then
-            rows = winwidth * (rows/cols)
+            rows = winwidth * (rows / cols)
             cols = winwidth
         end
         local row_factor = self.rows / rows
@@ -97,14 +132,14 @@ function Image:display(row, col, buf, keys)
         self:set_vpad(buf, row, info.width, math.ceil(rows))
 
         -- check if visible
-        if row < info.topline-1 or row > info.botline then
+        if row < info.topline - 1 or row > info.botline then
             return false
         end
 
         -- image is cut off top
-        if row == info.topline-1 then
+        if row == info.topline - 1 then
             local topfill = vim.fn.winsaveview().topfill
-            local cutoff_rows = math.max(0, rows-topfill)
+            local cutoff_rows = math.max(0, rows - topfill)
             y_offset = cutoff_rows * row_factor * cs.y
             rows = topfill
         end
@@ -112,8 +147,8 @@ function Image:display(row, col, buf, keys)
         -- image is cut off bottom
         if row == info.botline then
             local screen_row = utils.buf_screenpos(row, 0, win, buf)
-            local screen_winbot = info.winrow+info.height
-            local visible_rows = screen_winbot-screen_row
+            local screen_winbot = info.winrow + info.height
+            local visible_rows = screen_winbot - screen_row
             if visible_rows > 0 then
                 rows = visible_rows
                 height = visible_rows * row_factor * cs.y
@@ -151,6 +186,8 @@ function Image:display(row, col, buf, keys)
     return true
 end
 
+---@param buf integer buffer number
+---@param opts {free: boolean?}
 function Image:delete(buf, opts)
     opts = opts or {}
     opts = vim.tbl_extend('keep', opts, {
@@ -171,29 +208,34 @@ function Image:delete(buf, opts)
     end
 end
 
+---@param buf integer buffer number
+---@param row integer
+---@param cols integer
+---@param rows integer
 function Image:set_vpad(buf, row, cols, rows)
-    if self.vpad ~= nil and 
-        self.vpad.row == row and 
-        self.vpad.cols == cols and 
+    if self.vpad ~= nil and
+        self.vpad.row == row and
+        self.vpad.cols == cols and
         self.vpad.rows == rows then
         return
     end
 
     local text = string.rep(' ', cols)
     local filler = {}
-    for i=0,rows-1 do
-        filler[#filler+1] = {{text, ''}}
+    for _ = 0, rows - 1 do
+        filler[#filler + 1] = {{text, ''}}
     end
 
-    vim.api.nvim_buf_set_extmark(buf, vim.g.hologram_extmark_ns, row-1, 0, {
+    vim.api.nvim_buf_set_extmark(buf, vim.g.hologram_extmark_ns, row - 1, 0, {
         id = self.transmit_keys.image_id,
         virt_lines = filler,
         --virt_lines_leftcol = true,
     })
 
-    self.vpad = {row=row, cols=cols, rows=rows}
+    self.vpad = {row = row, cols = cols, rows = rows}
 end
 
+---@param buf integer buffer number
 function Image:remove_vpad(buf)
     if self.vpad ~= nil then
         vim.api.nvim_buf_del_extmark(buf, vim.g.hologram_extmark_ns, self.transmit_keys.image_id)

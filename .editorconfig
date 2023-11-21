@@ -1,0 +1,26 @@
+[*.lua]
+# [basic]
+
+# optional space/tab
+indent_style = space
+# if indent_style is space, this is valid
+indent_size = 4
+# if indent_style is tab, this is valid
+tab_width = 4
+# none/single/double
+quote_style = single
+
+continuation_indent = 4
+
+# [operator space]
+space_around_math_operator = true
+
+space_around_table_field_list = false
+
+# this mean utf8 length , if this is 'unset' then the line width is no longer checked
+# this option decides when to chopdown the code
+max_line_length = 120
+
+# optional crlf/lf/cr/auto, if it is 'auto', in windows it is crlf other platforms are lf
+# in neovim the value 'auto' is not a valid option, please use 'unset' 
+end_of_line = lf

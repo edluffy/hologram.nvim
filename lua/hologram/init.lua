@@ -3,6 +3,9 @@ local state = require('hologram.state')
 local Image = require('hologram.image')
 local fs = require('hologram.fs')
 
+---@class HologramSetupOpts
+---@field auto_display boolean?
+
 function hologram.setup(opts)
     -- Create autocommands
     local augroup = vim.api.nvim_create_augroup('Hologram', {clear = false})
@@ -43,18 +46,21 @@ end
 
 local prev_ids = {}
 
+---@param buf integer buffer number
+---@param top integer
+---@param bot integer
 function hologram.buf_render_images(buf, top, bot)
     local exts = vim.api.nvim_buf_get_extmarks(buf,
         vim.g.hologram_extmark_ns,
-        {math.max(top-1, 0), 0}, 
-        {bot-2, -1},
-    {})
+        {math.max(top - 1, 0), 0},
+        {bot - 2, -1},
+        {})
 
     local curr_ids = {}
     for _, ext in ipairs(exts) do
         local id, row, col = unpack(ext)
-        Image.instances[id]:display(row+1, 0, buf, {})
-        curr_ids[#curr_ids+1] = id
+        Image.instances[id]:display(row + 1, 0, buf, {})
+        curr_ids[#curr_ids + 1] = id
     end
 
     if prev_ids[buf] ~= nil then
@@ -67,30 +73,38 @@ function hologram.buf_render_images(buf, top, bot)
     prev_ids[buf] = curr_ids
 end
 
+---@param buf integer buffer number
+---@param top integer
+---@param bot integer
 function hologram.buf_generate_images(buf, top, bot)
     local lines = vim.api.nvim_buf_get_lines(buf, top, bot, false)
     for n, line in ipairs(lines) do
         local source = hologram.find_source(line)
         if source ~= nil then
             local img = Image:new(source, {})
-            img:display(top+n, 0, buf, {})
+            img:display(top + n, 0, buf, {})
         end
     end
 end
 
+---@param buf integer buffer number
+---@param top integer
+---@param bot integer
 function hologram.buf_delete_images(buf, top, bot)
     local exts = vim.api.nvim_buf_get_extmarks(buf,
         vim.g.hologram_extmark_ns,
         {top, 0},
         {bot, -1},
-    {})
+        {})
 
     for _, ext in ipairs(exts) do
         local id, _, _ = unpack(ext)
-        Image.instances[id]:delete(buf, {free=true})
+        Image.instances[id]:delete(buf, {free = true})
     end
 end
 
+---@param line string
+---@return string? path absolute path to the image if it is valid
 function hologram.find_source(line)
     if line:find('png') then
         local inline_link = line:match('!%[.-%]%(.-%)')
@@ -99,28 +113,34 @@ function hologram.find_source(line)
             local path = hologram._to_absolute_path(source)
             if fs.check_sig_PNG(path) then
                 return path
-            else return nil end
+            else
+                return nil
+            end
         end
     end
 end
 
+---@param path string
+---@return string
 function hologram._to_absolute_path(path)
     if hologram._is_root_path(path) then
         return path
     else
         -- absolute_path: folder_path + relative_path
-        local folder_path = vim.fn.expand("%:p:h")
-        local absolute_path = folder_path .. "/" .. path
+        local folder_path = vim.fn.expand('%:p:h')
+        local absolute_path = folder_path .. '/' .. path
         return absolute_path
     end
 end
 
+---@param path string
+---@return boolean
 function hologram._is_root_path(path)
     local first_path_char = string.sub(path, 0, 1)
-    if first_path_char == "/" then
-      return true
+    if first_path_char == '/' then
+        return true
     else
-      return false
+        return false
     end
 end
 

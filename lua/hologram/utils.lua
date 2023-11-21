@@ -4,7 +4,7 @@ local utils = {}
 function utils.buf_screenpos(row, col, win, buf)
     local top = vim.fn.line('w0', win)
     local filler = utils.filler_above(row, win, buf)
-    row = row-top+filler+1
+    row = row - top + filler + 1
     return utils.win_screenpos(row, col, win)
 end
 
@@ -17,18 +17,18 @@ end
 
 function utils.filler_above(row, win, buf)
     local top = vim.fn.line('w0', win)
-    row = row-1 -- row exclusive
+    row = row - 1 -- row exclusive
     if row <= top then
         return 0
     else
         local filler = vim.fn.winsaveview().topfill
         local exts = vim.api.nvim_buf_get_extmarks(buf,
             vim.g.hologram_extmark_ns,
-            {top-1, 0},
-            {row-1, -1},
-            {details=true}
+            {top - 1, 0},
+            {row - 1, -1},
+            {details = true}
         )
-        for i=1,#exts do
+        for i = 1, #exts do
             local opts = exts[i][4]
             if opts.virt_lines then filler = filler + #opts.virt_lines end
         end

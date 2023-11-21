@@ -14,7 +14,7 @@ state.screen_size = {
 
 function state.update_cell_size()
     local ffi = require('ffi')
-    ffi.cdef[[
+    ffi.cdef [[
         typedef struct {
             unsigned short row;
             unsigned short col;
@@ -34,7 +34,7 @@ function state.update_cell_size()
         TIOCGWINSZ = 0x40087468
     end
 
-    local sz = ffi.new("winsize")
+    local sz = ffi.new('winsize')
     assert(ffi.C.ioctl(1, TIOCGWINSZ, sz) == 0,
         'Hologram failed to get screen size: detected OS is not supported.')
 
